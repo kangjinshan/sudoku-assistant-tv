@@ -1,0 +1,13 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.iml
+captures/
+!captures/
+captures/*
+!captures/AGENTS.md
+*.jks
+*.keystore
+keystore.properties
+.DS_Store
