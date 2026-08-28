@@ -5,9 +5,9 @@
 
     <application
         android:allowBackup="true"
-        android:banner="@drawable/tv_banner"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner_hd"
+        android:icon="@mipmap/ic_launcher_hd"
+        android:roundIcon="@mipmap/ic_launcher_hd"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.SudokuAssistant">

@@ -16,7 +16,7 @@
 | `app/src/main/java/com/kanayama/sudokuassistant/` | Activity、状态机、绘制和遥控器事件 | 所有电视输入由 `MainActivity.dispatchKeyEvent` 同步进入 `SudokuGameView.handleKey` | [应用层指南](app/src/main/java/com/kanayama/sudokuassistant/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/model/` | 数独规格、生成、校验与求解 | 支持 4×4、6×6、9×9；至少保证有解 | [模型指南](app/src/main/java/com/kanayama/sudokuassistant/model/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/data/` | 本地成绩持久化 | 每个宫格与难度组合保留最快 10 次 | [数据指南](app/src/main/java/com/kanayama/sudokuassistant/data/AGENTS.md) |
-| `app/src/main/res/` | Manifest、主题、图标和 TV 横幅 | 应用图标来自用户提供的方形图片 | [资源指南](app/src/main/res/AGENTS.md) |
+| `app/src/main/res/` | Manifest、主题、高清图标和 TV 横幅 | Android 资源目录禁止存放 Markdown，维护规则统一见应用模块文档 | [应用模块指南](app/AGENTS.md) |
 | `app/src/test/` | JVM 单元测试 | 穷举三种宫格与三档难度的生成校验 | [测试指南](app/src/test/AGENTS.md) |
 | `gradle/` | Gradle Wrapper | 固定 Gradle 8.9 | [构建工具指南](gradle/AGENTS.md) |
 
@@ -73,4 +73,3 @@
 - 新增有业务逻辑、外部依赖或关键配置的目录时必须补建 `AGENTS.md`；删除或重命名文件后必须清除全部失效引用。
 - 除非用户明确要求跳过，否则不得把文档维护留到后续任务。
 - 发布前至少运行 `./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease`；真机改动还需检查启动、DPAD、截图和崩溃日志。
-

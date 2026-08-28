@@ -35,3 +35,11 @@
 
 构建：`./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease`。
 
+## 5. 资源维护
+
+- `src/main/res/mipmap-nodpi/ic_launcher_hd.png`：Manifest、圆形图标和 Android 12+ 启动画面引用的 1254×1254 高清图标。
+- `src/main/res/drawable-nodpi/app_icon_source.png`：README 展示和后续重制使用的源图。
+- `src/main/res/drawable-nodpi/tv_banner_hd.png`：1280×720 的电视桌面横幅。
+- `src/main/res/values/themes.xml`：API 24+ 基础主题；`values-v31/themes.xml` 增加系统启动画面。
+- Android `res/` 及其子目录只能包含合法资源文件，禁止在其中放置 `AGENTS.md` 或其他任意扩展名文件。
+- 主图标使用 `nodpi` 高清资源，避免电视桌面选择低分辨率 mipmap 后再次放大。
