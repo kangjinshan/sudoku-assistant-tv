@@ -251,14 +251,14 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         incorrectCells = emptySet()
         statusMessage = null
         if (entries.all { it != 0 }) {
-            val wrong = entries.indices.filterTo(mutableSetOf()) { entries[it] != current.solution[it] }
-            if (wrong.isEmpty()) {
+            if (current.isValidCompletion(entries)) {
                 elapsedSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000L
                 newRecord = scores.record(current.size, current.difficulty, elapsedSeconds)
                 rewardFocus = 1
                 page = Page.REWARD
             } else {
-                incorrectCells = wrong
+                incorrectCells = SudokuGenerator.conflictingCells(entries, current.size)
+                    .filterTo(mutableSetOf()) { !current.isGiven(it) }
                 statusMessage = "还有数字不正确，请继续检查"
             }
         }

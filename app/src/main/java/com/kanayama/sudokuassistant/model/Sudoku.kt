@@ -28,6 +28,11 @@ data class Puzzle(
     }
 
     fun isGiven(index: Int): Boolean = givens[index] != 0
+
+    fun isValidCompletion(values: IntArray): Boolean =
+        values.size == givens.size &&
+            values.indices.all { index -> givens[index] == 0 || values[index] == givens[index] } &&
+            SudokuGenerator.isValidSolution(values, size)
 }
 
 object SudokuGenerator {
@@ -99,6 +104,44 @@ object SudokuGenerator {
             }
         }
         return true
+    }
+
+    fun conflictingCells(values: IntArray, size: BoardSize): Set<Int> {
+        val side = size.side
+        if (values.size != side * side) return values.indices.toSet()
+        val conflicts = mutableSetOf<Int>()
+
+        values.forEachIndexed { index, value ->
+            if (value !in 1..side) conflicts += index
+        }
+
+        fun collectDuplicates(indices: Iterable<Int>) {
+            indices
+                .filter { values[it] in 1..side }
+                .groupBy { values[it] }
+                .values
+                .filter { it.size > 1 }
+                .forEach { conflicts.addAll(it) }
+        }
+
+        for (row in 0 until side) {
+            collectDuplicates((0 until side).map { column -> row * side + column })
+        }
+        for (column in 0 until side) {
+            collectDuplicates((0 until side).map { row -> row * side + column })
+        }
+        for (blockRow in 0 until side step size.blockRows) {
+            for (blockColumn in 0 until side step size.blockColumns) {
+                collectDuplicates(buildList {
+                    for (row in blockRow until blockRow + size.blockRows) {
+                        for (column in blockColumn until blockColumn + size.blockColumns) {
+                            add(row * side + column)
+                        }
+                    }
+                })
+            }
+        }
+        return conflicts
     }
 
     fun hasSolution(givens: IntArray, size: BoardSize): Boolean {

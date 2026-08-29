@@ -5,24 +5,25 @@
 
 ## 1. 模块概述
 
-该模块生成适合四宫、六宫和九宫练习的有效题目，并为最终提交提供标准答案。业务要求是每题至少有解，不强制唯一解。
+该模块生成适合四宫、六宫和九宫练习的有效题目，并按原始题面及数独规则校验最终提交。业务要求是每题至少有解，不强制唯一解；任一合法完整答案都应通过。
 
 ## 2. 核心代码结构
 
 | 文件 | 职责 | 关键类 / 方法 |
 |---|---|---|
-| `Sudoku.kt` | 全部领域模型与算法 | `BoardSize`、`Difficulty`、`Puzzle`、`SudokuGenerator.generate`、`hasSolution` |
+| `Sudoku.kt` | 全部领域模型与算法 | `BoardSize`、`Difficulty`、`Puzzle.isValidCompletion`、`SudokuGenerator.generate`、`isValidSolution`、`conflictingCells`、`hasSolution` |
 
 ## 3. 核心业务流程
 
 - **生成完整盘**：`generate` → `generateSolution` → 行带/列栈/数字随机置换 → `isValidSolution`。
 - **生成题面**：按 `clueCount` 随机清零 → `hasSolution` 回溯验证 → 创建 `Puzzle`。
-- **最终校验**：UI 将玩家数组逐格与 `Puzzle.solution` 比较。
+- **最终校验**：`Puzzle.isValidCompletion` 先确认原始已知数未变，再以 `isValidSolution` 验证每行、每列、每宫；不与 `Puzzle.solution` 逐格比较。
+- **冲突定位**：非法完整盘由 `conflictingCells` 找出行、列或宫内的重复数字，供 UI 标出需要检查的玩家填写格。
 
 ## 4. 关键资源与副作用
 
 - 无外部存储、网络或异步副作用。
-- `Puzzle.solution` 和 `givens` 是可变数组；调用方不得修改 `solution`。
+- `Puzzle.solution` 是生成阶段保留的参考解，不得用于最终通关判定；`solution` 和 `givens` 均为可变数组，调用方不得修改。
 - 已知数：四宫 12/10/8，六宫 27/22/18，九宫 54/43/32。
 
 ## 5. 常见修改场景与切入点
@@ -40,4 +41,3 @@
 | 分宫尺寸与边长不整除 | 低 | 生成错误盘 | 新规格必须满足 `blockRows × blockColumns == side` |
 | 提示数过少导致回溯变慢 | 中 | 开局按键卡顿 | 压测生成时间，必要时后台预生成 |
 | 修改 pattern 后出现非法解 | 中 | 所有题不可用 | 运行全部 `SudokuGeneratorTest` |
-

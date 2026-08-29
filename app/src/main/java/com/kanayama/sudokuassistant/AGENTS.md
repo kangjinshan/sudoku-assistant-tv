@@ -24,7 +24,7 @@
 - **填写数字**：`handleGameKey` → 确定键打开普通 picker → 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
 - **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用 `SystemClock.elapsedRealtime` 重算秒数 → `invalidate`。
-- **通关记录**：`enterValue` 比较 `entries` 与 `Puzzle.solution` → `ScoreRepository.record` → `Page.REWARD`。
+- **通关记录**：`enterValue` 调用 `Puzzle.isValidCompletion` 校验题面约束及行、列、宫规则 → `ScoreRepository.record` → `Page.REWARD`；多解题的任一合法答案均可通关。
 - **退出应用**：首页返回键打开确认状态 → 左右切换 `exitSelected` → 确定后调用 Activity 提供的 `exitApp`。
 
 ## 4. 关键资源与副作用
@@ -42,7 +42,7 @@
 - 调整预选交互：同步检查 `pickerMode`、`pickerDraftMask`、`candidateMasks`、`togglePickerCandidate` 与 `drawGame` 的四角绘制。
 - 新增页面：扩展 `Page`、`handleKey` 和 `onDraw` 三处分支。
 - 修改计时：从 `ticker` 与 `startedAt` 入手，不能靠 tick 次数累加。
-- 修改通关逻辑：从 `enterValue` 入手，并回归 `ScoreRepository.record` 与奖励页。
+- 修改通关逻辑：从 `enterValue` 与 `Puzzle.isValidCompletion` 入手，并回归多解题、`ScoreRepository.record` 与奖励页。
 
 ## 6. 维护与风险说明
 
@@ -51,4 +51,4 @@
 | 按键被 Compose/焦点框架延迟 | 高（已发生） | 首次 10 秒不可操作 | 坚持原生 View；真机冷启动后 1 秒内发送 DPAD 验证 |
 | 设计坐标修改导致过扫描裁切 | 中 | 边缘按钮不可见 | 在 1920×1080 真机截图检查四边至少 48px 安全区 |
 | ticker 未移除造成泄漏 | 低 | 后台耗电和重复刷新 | 保持 `onDetachedFromWindow` 调用 `removeCallbacks` |
-| 自动提交误触发 | 中 | 未填完或错误答案进入奖励页 | 保持 `entries.all` 与逐格 solution 比较顺序 |
+| 自动提交误触发 | 中 | 未填完或错误答案进入奖励页 | 保持 `entries.all` 后再校验题面约束及完整数独规则 |

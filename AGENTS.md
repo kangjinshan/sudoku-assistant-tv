@@ -44,7 +44,7 @@
   - 副作用：每格最多保留 4 个仅存内存的预选；预选不计完成度、不触发校验，正式填数后自动清除
 - **正确通关与奖励**
   - 入口：`SudokuGameView.enterValue`
-  - 核心逻辑：答案数组比较 → `ScoreRepository.record` → `Page.REWARD`
+  - 核心逻辑：`Puzzle.isValidCompletion` 按行、列、宫和原始题面校验 → `ScoreRepository.record` → `Page.REWARD`
   - 副作用：更新 `sudoku_scores` SharedPreferences
 - **查看最好成绩**
   - 入口：`SudokuGameView.handleScoresKey`
@@ -65,7 +65,7 @@
 - 预选：空格按菜单键进入预选窗口，窗口内菜单键切换数字、确定键保存；每格最多 4 个，按升序绘制到四角。
 - 布局：`SudokuGameView` 以 1920×1080 为设计坐标并缩放到实际画面；棋盘保持 984×984 设计像素，数字面板必须位于右侧且不得覆盖棋盘。
 - 规则：六宫采用 2 行×3 列分宫；生成题可多解，但必须经 `hasSolution` 确认至少有解。
-- 校验：填写过程不即时判错；仅在最后一个空格填满后统一校验并自动提交。
+- 校验：填写过程不即时判错；仅在最后一个空格填满后统一校验并自动提交。不得逐格对比生成答案，多解题中任何满足原始题面及行、列、宫规则的完整答案都必须判对。
 - 计时：以 `SystemClock.elapsedRealtime()` 计算真实用时，刷新任务只负责重绘，不能用累计 tick 代替真实时钟。
 - 存储：只保存每个 `BoardSize × Difficulty` 的最快 10 次秒数，不保存未完成棋局。
 - 发布：电视安装使用 Release APK 和覆盖安装；禁止为部署执行卸载或清除应用数据。
