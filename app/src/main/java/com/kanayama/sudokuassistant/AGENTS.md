@@ -1,6 +1,6 @@
 # 应用交互模块开发指南
 
-> 最后更新：2026-08-28  
+> 最后更新：2026-08-29
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/`
 
 ## 1. 模块概述
@@ -21,7 +21,8 @@
 
 - **首键响应**：Android `KeyEvent` → `MainActivity.dispatchKeyEvent` → `SudokuGameView.handleKey` → 对应页面 handler → `invalidate`。
 - **开始游戏**：`handleHomeKey` → `activateHome` → `startGame` → `SudokuGenerator.generate` → 初始化题盘与 `startedAt`。
-- **填写数字**：`handleGameKey` → 打开右侧 picker → 改变 `pickerSelection` → `enterValue` → 必要时自动提交。
+- **填写数字**：`handleGameKey` → 确定键打开普通 picker → 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
+- **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用 `SystemClock.elapsedRealtime` 重算秒数 → `invalidate`。
 - **通关记录**：`enterValue` 比较 `entries` 与 `Puzzle.solution` → `ScoreRepository.record` → `Page.REWARD`。
 - **退出应用**：首页返回键打开确认状态 → 左右切换 `exitSelected` → 确定后调用 Activity 提供的 `exitApp`。
@@ -38,6 +39,7 @@
 - 调整首页焦点路径：修改 `handleHomeKey`，并同步检查 `drawHome` 中的 `homeFocus` 索引。
 - 调整数独盘尺寸：修改 `drawGame` 的 `boardPixels`；同时验证 4/6/9 三种字号和粗分隔线。
 - 调整数字浮层：修改 `drawPicker` 的 `panelWidth`、`key` 和右边界，确保左边界大于棋盘右边界 1080。
+- 调整预选交互：同步检查 `pickerMode`、`pickerDraftMask`、`candidateMasks`、`togglePickerCandidate` 与 `drawGame` 的四角绘制。
 - 新增页面：扩展 `Page`、`handleKey` 和 `onDraw` 三处分支。
 - 修改计时：从 `ticker` 与 `startedAt` 入手，不能靠 tick 次数累加。
 - 修改通关逻辑：从 `enterValue` 入手，并回归 `ScoreRepository.record` 与奖励页。
@@ -50,4 +52,3 @@
 | 设计坐标修改导致过扫描裁切 | 中 | 边缘按钮不可见 | 在 1920×1080 真机截图检查四边至少 48px 安全区 |
 | ticker 未移除造成泄漏 | 低 | 后台耗电和重复刷新 | 保持 `onDetachedFromWindow` 调用 `removeCallbacks` |
 | 自动提交误触发 | 中 | 未填完或错误答案进入奖励页 | 保持 `entries.all` 与逐格 solution 比较顺序 |
-

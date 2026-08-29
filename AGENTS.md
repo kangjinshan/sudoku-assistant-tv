@@ -1,6 +1,6 @@
 # 数独助手 TV版：Agent 协作指南
 
-> 最后更新：2026-08-28
+> 最后更新：2026-08-29
 
 ## 1. 系统概述
 
@@ -38,6 +38,10 @@
   - 入口：`MainActivity.dispatchKeyEvent`
   - 核心逻辑：`SudokuGameView.handleGameKey` → `enterValue`
   - 副作用：最后一格填满后自动校验；错误格只在整盘提交后标记
+- **空格预选数字**
+  - 入口：游戏中空格按菜单键
+  - 核心逻辑：`SudokuGameView.openCandidatePicker` → `togglePickerCandidate`
+  - 副作用：每格最多保留 4 个仅存内存的预选；预选不计完成度、不触发校验，正式填数后自动清除
 - **正确通关与奖励**
   - 入口：`SudokuGameView.enterValue`
   - 核心逻辑：答案数组比较 → `ScoreRepository.record` → `Page.REWARD`
@@ -58,6 +62,7 @@
 ## 4. 全局设计约束
 
 - 输入：所有 DPAD/确定/返回键必须经过原生 `View` 路径，首页首帧后立即响应；禁止重新引入 Compose 焦点链路。
+- 预选：空格按菜单键进入预选窗口，窗口内菜单键切换数字、确定键保存；每格最多 4 个，按升序绘制到四角。
 - 布局：`SudokuGameView` 以 1920×1080 为设计坐标并缩放到实际画面；棋盘保持 984×984 设计像素，数字面板必须位于右侧且不得覆盖棋盘。
 - 规则：六宫采用 2 行×3 列分宫；生成题可多解，但必须经 `hasSolution` 确认至少有解。
 - 校验：填写过程不即时判错；仅在最后一个空格填满后统一校验并自动提交。

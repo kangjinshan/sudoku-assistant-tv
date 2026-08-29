@@ -17,6 +17,7 @@ import com.kanayama.sudokuassistant.model.SudokuGenerator
 import kotlin.math.min
 
 private enum class Page { HOME, GAME, REWARD, SCORES }
+private enum class PickerMode { VALUE, CANDIDATES }
 
 class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(context) {
     private val ink = Color.rgb(8, 19, 29)
@@ -40,8 +41,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var exitSelected = false
     private var pickerOpen = false
     private var pickerSelection = 4
+    private var pickerMode = PickerMode.VALUE
+    private var pickerDraftMask = 0
+    private var pickerLimitReached = false
     private var puzzle: Puzzle? = null
     private var entries = IntArray(0)
+    private var candidateMasks = IntArray(0)
     private var selectedCell = 0
     private var incorrectCells = emptySet<Int>()
     private var statusMessage: String? = null
@@ -162,6 +167,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         val generated = SudokuGenerator.generate(boardSize, difficulty)
         puzzle = generated
         entries = generated.givens.copyOf()
+        candidateMasks = IntArray(entries.size)
         selectedCell = generated.givens.indexOfFirst { it == 0 }.coerceAtLeast(0)
         incorrectCells = emptySet()
         statusMessage = null
@@ -178,15 +184,37 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             val row = pickerSelection / columns
             val column = pickerSelection % columns
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (column > 0) pickerSelection--
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (column < columns - 1 && pickerSelection + 1 < current.size.side) pickerSelection++
-                KeyEvent.KEYCODE_DPAD_UP -> if (row > 0) pickerSelection -= columns
-                KeyEvent.KEYCODE_DPAD_DOWN -> if (pickerSelection + columns < current.size.side) pickerSelection += columns
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (column > 0) {
+                    pickerSelection--
+                    pickerLimitReached = false
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (column < columns - 1 && pickerSelection + 1 < current.size.side) {
+                    pickerSelection++
+                    pickerLimitReached = false
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> if (row > 0) {
+                    pickerSelection -= columns
+                    pickerLimitReached = false
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (pickerSelection + columns < current.size.side) {
+                    pickerSelection += columns
+                    pickerLimitReached = false
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     pickerOpen = false
-                    enterValue(pickerSelection + 1)
+                    if (pickerMode == PickerMode.VALUE) {
+                        enterValue(pickerSelection + 1)
+                    } else {
+                        candidateMasks[selectedCell] = pickerDraftMask
+                    }
                 }
-                KeyEvent.KEYCODE_BACK -> pickerOpen = false
+                KeyEvent.KEYCODE_MENU -> {
+                    if (pickerMode == PickerMode.CANDIDATES) togglePickerCandidate()
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    pickerOpen = false
+                    pickerLimitReached = false
+                }
                 else -> return false
             }
             return true
@@ -201,8 +229,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             KeyEvent.KEYCODE_DPAD_RIGHT -> selectedCell = row * side + (column + 1).coerceAtMost(side - 1)
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 if (!current.isGiven(selectedCell)) {
-                    pickerSelection = current.size.defaultPickerValue - 1
-                    pickerOpen = true
+                    openValuePicker(current.size)
+                }
+            }
+            KeyEvent.KEYCODE_MENU -> {
+                if (!current.isGiven(selectedCell) && entries[selectedCell] == 0) {
+                    openCandidatePicker(current.size)
                 }
             }
             KeyEvent.KEYCODE_BACK -> showHome()
@@ -215,6 +247,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         val current = puzzle ?: return
         if (current.isGiven(selectedCell)) return
         entries[selectedCell] = value
+        candidateMasks[selectedCell] = 0
         incorrectCells = emptySet()
         statusMessage = null
         if (entries.all { it != 0 }) {
@@ -228,6 +261,36 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 incorrectCells = wrong
                 statusMessage = "还有数字不正确，请继续检查"
             }
+        }
+    }
+
+    private fun openValuePicker(size: BoardSize) {
+        pickerMode = PickerMode.VALUE
+        pickerSelection = size.defaultPickerValue - 1
+        pickerDraftMask = 0
+        pickerLimitReached = false
+        pickerOpen = true
+    }
+
+    private fun openCandidatePicker(size: BoardSize) {
+        pickerMode = PickerMode.CANDIDATES
+        pickerDraftMask = candidateMasks[selectedCell]
+        pickerSelection = (0 until size.side).firstOrNull { pickerDraftMask and (1 shl it) != 0 }
+            ?: (size.defaultPickerValue - 1)
+        pickerLimitReached = false
+        pickerOpen = true
+    }
+
+    private fun togglePickerCandidate() {
+        val bit = 1 shl pickerSelection
+        if (pickerDraftMask and bit != 0) {
+            pickerDraftMask = pickerDraftMask and bit.inv()
+            pickerLimitReached = false
+        } else if (Integer.bitCount(pickerDraftMask) < 4) {
+            pickerDraftMask = pickerDraftMask or bit
+            pickerLimitReached = false
+        } else {
+            pickerLimitReached = true
         }
     }
 
@@ -268,6 +331,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun showHome() {
         puzzle = null
         entries = IntArray(0)
+        candidateMasks = IntArray(0)
         pickerOpen = false
         exitOpen = false
         homeFocus = 7
@@ -365,22 +429,49 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 textCenter(canvas, value.toString(), left + column * cell + cell / 2f, top + row * cell + cell * .72f, cell * .66f, color, true)
             }
         }
+        candidateMasks.forEachIndexed { index, mask ->
+            if (entries[index] == 0 && mask != 0) {
+                val row = index / side
+                val column = index % side
+                val cellLeft = left + column * cell
+                val cellTop = top + row * cell
+                var slot = 0
+                repeat(side) { numberIndex ->
+                    if (mask and (1 shl numberIndex) != 0 && slot < 4) {
+                        val xFactor = if (slot % 2 == 0) .23f else .77f
+                        val yFactor = if (slot < 2) .32f else .86f
+                        textCenter(
+                            canvas,
+                            (numberIndex + 1).toString(),
+                            cellLeft + cell * xFactor,
+                            cellTop + cell * yFactor,
+                            min(cell * .28f, 34f),
+                            if (index == selectedCell) ink else Color.rgb(19, 121, 119),
+                            true
+                        )
+                        slot++
+                    }
+                }
+            }
+        }
         strokeRect(canvas, left + selectedColumn * cell + 3f, top + selectedRow * cell + 3f, left + (selectedColumn + 1) * cell - 3f, top + (selectedRow + 1) * cell - 3f, mint, 7f)
 
         text(canvas, "${current.size.label} · ${current.difficulty.label}", 1165f, 135f, 40f, mint, true)
         text(canvas, formatTime(elapsedSeconds), 1165f, 280f, 74f, cream)
         text(canvas, "本局用时", 1165f, 340f, 28f, muted)
-        text(canvas, "方向键", 1165f, 465f, 34f, cream, true)
-        text(canvas, "移动蓝绿色光标", 1165f, 520f, 27f, muted)
-        text(canvas, "确定键", 1165f, 605f, 34f, cream, true)
-        text(canvas, "打开数字面板，再按确定填入", 1165f, 660f, 27f, muted)
-        text(canvas, "自动提交", 1165f, 745f, 34f, cream, true)
-        text(canvas, "最后一个空格填满后自动校验", 1165f, 800f, 27f, muted)
-        statusMessage?.let { text(canvas, it, 1165f, 855f, 28f, coral, true) }
+        text(canvas, "方向键", 1165f, 430f, 32f, cream, true)
+        text(canvas, "移动蓝绿色光标", 1165f, 474f, 25f, muted)
+        text(canvas, "确定键", 1165f, 540f, 32f, cream, true)
+        text(canvas, "打开数字面板，选择并正式填入", 1165f, 584f, 25f, muted)
+        text(canvas, "菜单键", 1165f, 650f, 32f, cream, true)
+        text(canvas, "为空格添加最多 4 个预选数字", 1165f, 694f, 25f, muted)
+        text(canvas, "自动提交", 1165f, 760f, 32f, cream, true)
+        text(canvas, "最后一个空格填满后自动校验", 1165f, 804f, 25f, muted)
+        statusMessage?.let { text(canvas, it, 1165f, 850f, 27f, coral, true) }
         val filled = entries.count { it != 0 }
-        text(canvas, "完成度  $filled / ${entries.size}", 1165f, 860f, 29f, cream)
-        rounded(canvas, 1165f, 890f, 1824f, 904f, 7f, panelLight)
-        rounded(canvas, 1165f, 890f, 1165f + 659f * filled / entries.size, 904f, 7f, mint)
+        text(canvas, "完成度  $filled / ${entries.size}", 1165f, 885f, 27f, cream)
+        rounded(canvas, 1165f, 910f, 1824f, 924f, 7f, panelLight)
+        rounded(canvas, 1165f, 910f, 1165f + 659f * filled / entries.size, 924f, 7f, mint)
         text(canvas, "返回键退出本局", 1165f, 975f, 25f, muted)
         if (pickerOpen) drawPicker(canvas, current.size)
     }
@@ -399,7 +490,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         val top = (1080f - panelHeight) / 2f
         rounded(canvas, left, top, right, top + panelHeight, 28f, panel)
         strokeRound(canvas, left, top, right, top + panelHeight, 28f, panelLight, 3f)
-        textCenter(canvas, "选择数字", (left + right) / 2f, top + 76f, 38f, cream, true)
+        textCenter(canvas, if (pickerMode == PickerMode.VALUE) "选择数字" else "预选数字", (left + right) / 2f, top + 76f, 38f, cream, true)
         val gridWidth = columns * key + (columns - 1) * gap
         val gridLeft = (left + right - gridWidth) / 2f
         repeat(rows) { row ->
@@ -408,13 +499,38 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 if (index < size.side) {
                     val x = gridLeft + column * (key + gap)
                     val y = top + 105f + row * (key + gap)
-                    rounded(canvas, x, y, x + key, y + key, 18f, if (index == pickerSelection) mint else ink)
-                    strokeRound(canvas, x, y, x + key, y + key, 18f, if (index == pickerSelection) cream else panelLight, if (index == pickerSelection) 5f else 2f)
-                    textCenter(canvas, "${index + 1}", x + key / 2f, y + key * .7f, 58f, if (index == pickerSelection) ink else cream, true)
+                    val focused = index == pickerSelection
+                    val chosen = pickerMode == PickerMode.CANDIDATES && pickerDraftMask and (1 shl index) != 0
+                    rounded(canvas, x, y, x + key, y + key, 18f, when {
+                        focused -> mint
+                        chosen -> Color.rgb(31, 74, 84)
+                        else -> ink
+                    })
+                    strokeRound(canvas, x, y, x + key, y + key, 18f, when {
+                        focused -> cream
+                        chosen -> gold
+                        else -> panelLight
+                    }, if (focused) 5f else if (chosen) 4f else 2f)
+                    textCenter(canvas, "${index + 1}", x + key / 2f, y + key * .7f, 58f, when {
+                        focused -> ink
+                        chosen -> gold
+                        else -> cream
+                    }, true)
+                    if (chosen) {
+                        paint.color = gold
+                        canvas.drawCircle(x + key - 18f, y + 18f, 8f, paint)
+                    }
                 }
             }
         }
-        textCenter(canvas, "方向键选择 · 确定键填入", (left + right) / 2f, top + panelHeight - 28f, 22f, muted)
+        val footer = if (pickerMode == PickerMode.VALUE) {
+            "方向键选择 · 确定键填入"
+        } else if (pickerLimitReached) {
+            "每格最多预选 4 个数字"
+        } else {
+            "菜单键选中/取消 · 确定键完成"
+        }
+        textCenter(canvas, footer, (left + right) / 2f, top + panelHeight - 28f, 22f, if (pickerLimitReached) coral else muted)
     }
 
     private fun drawReward(canvas: Canvas) {
