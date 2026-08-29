@@ -8,7 +8,7 @@ enum class BoardSize(
     val defaultPickerValue: Int,
 ) {
     FOUR(4, 2, 2, "四宫", 2),
-    SIX(6, 2, 3, "六宫", 3),
+    SIX(6, 2, 3, "六宫", 2),
     NINE(9, 3, 3, "九宫", 5),
 }
 

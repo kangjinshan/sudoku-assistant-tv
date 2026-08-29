@@ -8,6 +8,13 @@ import kotlin.random.Random
 
 class SudokuGeneratorTest {
     @Test
+    fun pickerDefaultsMatchBoardSizeUx() {
+        assertEquals(2, BoardSize.FOUR.defaultPickerValue)
+        assertEquals(2, BoardSize.SIX.defaultPickerValue)
+        assertEquals(5, BoardSize.NINE.defaultPickerValue)
+    }
+
+    @Test
     fun everySizeAndDifficultyProducesValidSolvablePuzzle() {
         BoardSize.entries.forEach { size ->
             Difficulty.entries.forEach { difficulty ->

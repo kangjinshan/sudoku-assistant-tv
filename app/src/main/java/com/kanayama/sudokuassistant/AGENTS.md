@@ -21,7 +21,7 @@
 
 - **首键响应**：Android `KeyEvent` → `MainActivity.dispatchKeyEvent` → `SudokuGameView.handleKey` → 对应页面 handler → `invalidate`。
 - **开始游戏**：`handleHomeKey` → `activateHome` → `startGame` → `SudokuGenerator.generate` → 初始化题盘与 `startedAt`。
-- **填写数字**：`handleGameKey` → 确定键打开普通 picker → 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
+- **填写数字**：`handleGameKey` → 确定键打开普通 picker → 按 `BoardSize.defaultPickerValue` 初始化焦点（四宫/六宫为 2，九宫为 5）→ 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
 - **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用 `SystemClock.elapsedRealtime` 重算秒数 → `invalidate`。
 - **通关记录**：`enterValue` 调用 `Puzzle.isValidCompletion` 校验题面约束及行、列、宫规则 → `ScoreRepository.record` → `Page.REWARD`；多解题的任一合法答案均可通关。
@@ -39,6 +39,7 @@
 - 调整首页焦点路径：修改 `handleHomeKey`，并同步检查 `drawHome` 中的 `homeFocus` 索引。
 - 调整数独盘尺寸：修改 `drawGame` 的 `boardPixels`；同时验证 4/6/9 三种字号和粗分隔线。
 - 调整数字浮层：修改 `drawPicker` 的 `panelWidth`、`key` 和右边界，确保左边界大于棋盘右边界 1080。
+- 调整数字浮层默认焦点：修改 `BoardSize.defaultPickerValue`，并同步 README、模型测试和空白预选面板行为。
 - 调整预选交互：同步检查 `pickerMode`、`pickerDraftMask`、`candidateMasks`、`togglePickerCandidate` 与 `drawGame` 的四角绘制。
 - 新增页面：扩展 `Page`、`handleKey` 和 `onDraw` 三处分支。
 - 修改计时：从 `ticker` 与 `startedAt` 入手，不能靠 tick 次数累加。

@@ -10,6 +10,7 @@
 ## 2. 核心组件
 
 - `SudokuGeneratorTest.everySizeAndDifficultyProducesValidSolvablePuzzle`：对 3 种棋盘 × 3 种难度 × 10 个种子验证。
+- `SudokuGeneratorTest.pickerDefaultsMatchBoardSizeUx`：锁定四宫/六宫默认数字 2、九宫默认数字 5。
 - `SudokuGeneratorTest.invalidCompletedBoardIsRejected`：确认重复数字会被拒绝。
 - `SudokuGeneratorTest.validAlternativeCompletionIsAccepted`：确认不同于生成参考解的合法答案可以通关。
 - `SudokuGeneratorTest.completionMustKeepGivensAndFollowSudokuRules`：确认提交必须保留题面并满足数独规则，同时验证冲突定位。

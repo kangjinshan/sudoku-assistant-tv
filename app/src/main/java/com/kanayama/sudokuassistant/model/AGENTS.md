@@ -11,7 +11,7 @@
 
 | 文件 | 职责 | 关键类 / 方法 |
 |---|---|---|
-| `Sudoku.kt` | 全部领域模型与算法 | `BoardSize`、`Difficulty`、`Puzzle.isValidCompletion`、`SudokuGenerator.generate`、`isValidSolution`、`conflictingCells`、`hasSolution` |
+| `Sudoku.kt` | 全部领域模型与算法及棋盘交互规格 | `BoardSize`、`defaultPickerValue`、`Difficulty`、`Puzzle.isValidCompletion`、`SudokuGenerator.generate`、`isValidSolution`、`conflictingCells`、`hasSolution` |
 
 ## 3. 核心业务流程
 
@@ -25,6 +25,7 @@
 - 无外部存储、网络或异步副作用。
 - `Puzzle.solution` 是生成阶段保留的参考解，不得用于最终通关判定；`solution` 和 `givens` 均为可变数组，调用方不得修改。
 - 已知数：四宫 12/10/8，六宫 27/22/18，九宫 54/43/32。
+- 数字面板默认值：四宫 2、六宫 2、九宫 5；UI 的普通面板和空白预选面板统一读取 `BoardSize.defaultPickerValue`。
 
 ## 5. 常见修改场景与切入点
 
@@ -32,6 +33,7 @@
 - 改六宫分宫：修改 `BoardSize.SIX`，同步校验、绘制和说明文档。
 - 要求唯一解：扩展 `hasSolution` 为计数求解器，生成阶段在移除数字后限制解数为 1。
 - 新增宫格：更新 `BoardSize`、生成模式、UI picker 列数和全部参数化测试。
+- 改数字面板默认焦点：修改 `BoardSize.defaultPickerValue`，同步 README、UI 指南和模型测试。
 - 修复非法题：从 `isValidSolution`、`canPlace` 和 `hasSolution` 依次排查。
 
 ## 6. 维护与风险说明
