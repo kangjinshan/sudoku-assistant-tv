@@ -1,5 +1,6 @@
 package com.kanayama.sudokuassistant
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -7,7 +8,9 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
+import android.view.GestureDetector
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import com.kanayama.sudokuassistant.data.ScoreRepository
 import com.kanayama.sudokuassistant.model.BoardSize
@@ -18,6 +21,19 @@ import kotlin.math.min
 
 private enum class Page { HOME, GAME, REWARD, SCORES }
 private enum class PickerMode { VALUE, CANDIDATES }
+
+private data class PickerLayout(
+    val columns: Int,
+    val rows: Int,
+    val key: Float,
+    val gap: Float,
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+    val gridLeft: Float,
+    val gridTop: Float
+)
 
 class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(context) {
     private val ink = Color.rgb(8, 19, 29)
@@ -54,6 +70,22 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var elapsedSeconds = 0L
     private var newRecord = false
 
+    private val touchDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(event: MotionEvent): Boolean = true
+
+        override fun onSingleTapUp(event: MotionEvent): Boolean {
+            performClick()
+            val point = ViewportTransform.fit(width, height).toDesignPoint(event.x, event.y)
+            if (handleTap(point.x, point.y)) invalidate()
+            return true
+        }
+
+        override fun onLongPress(event: MotionEvent) {
+            val point = ViewportTransform.fit(width, height).toDesignPoint(event.x, event.y)
+            if (handleLongPress(point.x, point.y)) invalidate()
+        }
+    })
+
     private val ticker = object : Runnable {
         override fun run() {
             if (page == Page.GAME && startedAt > 0L) {
@@ -84,10 +116,10 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val sx = width / 1920f
-        val sy = height / 1080f
+        val viewport = ViewportTransform.fit(width, height)
         canvas.save()
-        canvas.scale(sx, sy)
+        canvas.translate(viewport.offsetX, viewport.offsetY)
+        canvas.scale(viewport.scale, viewport.scale)
         drawBackground(canvas)
         when (page) {
             Page.HOME -> drawHome(canvas)
@@ -97,6 +129,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         }
         canvas.restore()
     }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        touchDetector.onTouchEvent(event) || super.onTouchEvent(event)
+
+    override fun performClick(): Boolean = super.performClick()
 
     fun handleKey(keyCode: Int): Boolean {
         val handled = when (page) {
@@ -108,6 +146,169 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         if (handled) invalidate()
         return handled
     }
+
+    private fun handleTap(x: Float, y: Float): Boolean = when (page) {
+        Page.HOME -> handleHomeTap(x, y)
+        Page.GAME -> handleGameTap(x, y)
+        Page.REWARD -> handleRewardTap(x, y)
+        Page.SCORES -> handleScoresTap(x, y)
+    }
+
+    private fun handleLongPress(x: Float, y: Float): Boolean {
+        if (page != Page.GAME || pickerOpen) return false
+        val current = puzzle ?: return false
+        val cellIndex = boardCellAt(x, y, current.size.side) ?: return false
+        selectedCell = cellIndex
+        if (!current.isGiven(cellIndex) && entries[cellIndex] == 0) {
+            openCandidatePicker(current.size)
+        }
+        return true
+    }
+
+    private fun handleHomeTap(x: Float, y: Float): Boolean {
+        if (exitOpen) {
+            when {
+                contains(x, y, 485f, 588f, 904f, 710f) -> {
+                    exitSelected = false
+                    exitOpen = false
+                }
+                contains(x, y, 936f, 588f, 1435f, 710f) -> {
+                    exitSelected = true
+                    exitApp()
+                }
+                else -> return false
+            }
+            return true
+        }
+        BoardSize.entries.forEachIndexed { index, size ->
+            val left = 802f + index * 314f
+            if (contains(x, y, left, 264f, left + 286f, 452f)) {
+                homeFocus = index
+                boardSize = size
+                return true
+            }
+        }
+        Difficulty.entries.forEachIndexed { index, item ->
+            val left = 802f + index * 314f
+            if (contains(x, y, left, 604f, left + 286f, 790f)) {
+                homeFocus = index + 3
+                difficulty = item
+                return true
+            }
+        }
+        return when {
+            contains(x, y, 802f, 800f, 1155f, 920f) -> {
+                homeFocus = 6
+                activateHome()
+                true
+            }
+            contains(x, y, 1187f, 800f, 1716f, 920f) -> {
+                homeFocus = 7
+                activateHome()
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun handleGameTap(x: Float, y: Float): Boolean {
+        val current = puzzle ?: return false
+        if (pickerOpen) return handlePickerTap(x, y, current.size)
+        val cellIndex = boardCellAt(x, y, current.size.side) ?: return false
+        selectedCell = cellIndex
+        if (!current.isGiven(cellIndex)) openValuePicker(current.size)
+        return true
+    }
+
+    private fun handlePickerTap(x: Float, y: Float, size: BoardSize): Boolean {
+        val layout = pickerLayout(size)
+        repeat(size.side) { index ->
+            val column = index % layout.columns
+            val row = index / layout.columns
+            val left = layout.gridLeft + column * (layout.key + layout.gap)
+            val top = layout.gridTop + row * (layout.key + layout.gap)
+            if (contains(x, y, left, top, left + layout.key, top + layout.key)) {
+                pickerSelection = index
+                pickerLimitReached = false
+                if (pickerMode == PickerMode.VALUE) {
+                    pickerOpen = false
+                    enterValue(index + 1)
+                } else {
+                    togglePickerCandidate()
+                }
+                return true
+            }
+        }
+        if (pickerMode == PickerMode.CANDIDATES) {
+            val buttonTop = layout.bottom - 92f
+            val buttonMiddle = (layout.left + layout.right) / 2f
+            when {
+                contains(x, y, layout.left + 34f, buttonTop, buttonMiddle - 8f, layout.bottom - 24f) -> {
+                    pickerOpen = false
+                    pickerLimitReached = false
+                    return true
+                }
+                contains(x, y, buttonMiddle + 8f, buttonTop, layout.right - 34f, layout.bottom - 24f) -> {
+                    candidateMasks[selectedCell] = pickerDraftMask
+                    pickerOpen = false
+                    pickerLimitReached = false
+                    return true
+                }
+            }
+        }
+        if (!contains(x, y, layout.left, layout.top, layout.right, layout.bottom)) {
+            pickerOpen = false
+            pickerLimitReached = false
+            return true
+        }
+        return false
+    }
+
+    private fun handleRewardTap(x: Float, y: Float): Boolean = when {
+        contains(x, y, 650f, 680f, 925f, 800f) -> {
+            rewardFocus = 0
+            page = Page.SCORES
+            true
+        }
+        contains(x, y, 955f, 680f, 1290f, 800f) -> {
+            rewardFocus = 1
+            showHome()
+            true
+        }
+        else -> false
+    }
+
+    private fun handleScoresTap(x: Float, y: Float): Boolean {
+        repeat(6) { index ->
+            val left = 64f + index * 132f
+            if (contains(x, y, left, 190f, left + 116f, 246f)) {
+                scoreFocus = index
+                if (index < 3) boardSize = BoardSize.entries[index]
+                else difficulty = Difficulty.entries[index - 3]
+                return true
+            }
+        }
+        if (contains(x, y, 1635f, 65f, 1855f, 130f)) {
+            scoreFocus = 6
+            showHome()
+            return true
+        }
+        return false
+    }
+
+    private fun boardCellAt(x: Float, y: Float, side: Int): Int? {
+        val left = 96f
+        val top = 48f
+        val boardPixels = 984f
+        if (!contains(x, y, left, top, left + boardPixels, top + boardPixels)) return null
+        val cell = boardPixels / side
+        val column = ((x - left) / cell).toInt().coerceIn(0, side - 1)
+        val row = ((y - top) / cell).toInt().coerceIn(0, side - 1)
+        return row * side + column
+    }
+
+    private fun contains(x: Float, y: Float, left: Float, top: Float, right: Float, bottom: Float): Boolean =
+        x >= left && x < right && y >= top && y < bottom
 
     private fun handleHomeKey(keyCode: Int): Boolean {
         if (exitOpen) {
@@ -352,7 +553,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         text(canvas, "坐下来，专注一局。", 128f, 700f, 38f, muted)
         paint.color = mint
         canvas.drawCircle(137f, 830f, 10f, paint)
-        text(canvas, "遥控器方向键移动 · 确定键选择", 172f, 844f, 28f, cream)
+        text(canvas, "遥控器与触摸屏均可操作", 172f, 844f, 28f, cream)
 
         rounded(canvas, 726f, 84f, 1792f, 996f, 32f, panel)
         text(canvas, "选择宫格", 803f, 215f, 46f, cream, true)
@@ -459,12 +660,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         text(canvas, "${current.size.label} · ${current.difficulty.label}", 1165f, 135f, 40f, mint, true)
         text(canvas, formatTime(elapsedSeconds), 1165f, 280f, 74f, cream)
         text(canvas, "本局用时", 1165f, 340f, 28f, muted)
-        text(canvas, "方向键", 1165f, 430f, 32f, cream, true)
-        text(canvas, "移动蓝绿色光标", 1165f, 474f, 25f, muted)
-        text(canvas, "确定键", 1165f, 540f, 32f, cream, true)
-        text(canvas, "打开数字面板，选择并正式填入", 1165f, 584f, 25f, muted)
-        text(canvas, "菜单键", 1165f, 650f, 32f, cream, true)
-        text(canvas, "为空格添加最多 4 个预选数字", 1165f, 694f, 25f, muted)
+        text(canvas, "触摸操作", 1165f, 430f, 32f, cream, true)
+        text(canvas, "点按可填写格：打开数字面板", 1165f, 474f, 25f, muted)
+        text(canvas, "长按空格：添加最多 4 个预选数字", 1165f, 535f, 25f, muted)
+        text(canvas, "遥控器操作", 1165f, 610f, 32f, cream, true)
+        text(canvas, "方向键移动 · 确定键填数", 1165f, 654f, 25f, muted)
+        text(canvas, "菜单键为空格添加预选数字", 1165f, 698f, 25f, muted)
         text(canvas, "自动提交", 1165f, 760f, 32f, cream, true)
         text(canvas, "最后一个空格填满后自动校验", 1165f, 804f, 25f, muted)
         statusMessage?.let { text(canvas, it, 1165f, 850f, 27f, coral, true) }
@@ -479,58 +680,76 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun drawPicker(canvas: Canvas, size: BoardSize) {
         paint.color = Color.argb(145, 8, 19, 29)
         canvas.drawRect(0f, 0f, 1920f, 1080f, paint)
-        val columns = if (size == BoardSize.FOUR) 2 else 3
-        val rows = (size.side + columns - 1) / columns
-        val panelWidth = if (size == BoardSize.FOUR) 500f else 620f
-        val key = if (size == BoardSize.FOUR) 144f else 128f
-        val gap = 16f
-        val panelHeight = 125f + rows * (key + gap) + 75f
-        val right = 1848f
-        val left = right - panelWidth
-        val top = (1080f - panelHeight) / 2f
-        rounded(canvas, left, top, right, top + panelHeight, 28f, panel)
-        strokeRound(canvas, left, top, right, top + panelHeight, 28f, panelLight, 3f)
-        textCenter(canvas, if (pickerMode == PickerMode.VALUE) "选择数字" else "预选数字", (left + right) / 2f, top + 76f, 38f, cream, true)
-        val gridWidth = columns * key + (columns - 1) * gap
-        val gridLeft = (left + right - gridWidth) / 2f
-        repeat(rows) { row ->
-            repeat(columns) { column ->
-                val index = row * columns + column
+        val layout = pickerLayout(size)
+        rounded(canvas, layout.left, layout.top, layout.right, layout.bottom, 28f, panel)
+        strokeRound(canvas, layout.left, layout.top, layout.right, layout.bottom, 28f, panelLight, 3f)
+        textCenter(canvas, if (pickerMode == PickerMode.VALUE) "选择数字" else "预选数字", (layout.left + layout.right) / 2f, layout.top + 76f, 38f, cream, true)
+        repeat(layout.rows) { row ->
+            repeat(layout.columns) { column ->
+                val index = row * layout.columns + column
                 if (index < size.side) {
-                    val x = gridLeft + column * (key + gap)
-                    val y = top + 105f + row * (key + gap)
+                    val x = layout.gridLeft + column * (layout.key + layout.gap)
+                    val y = layout.gridTop + row * (layout.key + layout.gap)
                     val focused = index == pickerSelection
                     val chosen = pickerMode == PickerMode.CANDIDATES && pickerDraftMask and (1 shl index) != 0
-                    rounded(canvas, x, y, x + key, y + key, 18f, when {
+                    rounded(canvas, x, y, x + layout.key, y + layout.key, 18f, when {
                         focused -> mint
                         chosen -> Color.rgb(31, 74, 84)
                         else -> ink
                     })
-                    strokeRound(canvas, x, y, x + key, y + key, 18f, when {
+                    strokeRound(canvas, x, y, x + layout.key, y + layout.key, 18f, when {
                         focused -> cream
                         chosen -> gold
                         else -> panelLight
                     }, if (focused) 5f else if (chosen) 4f else 2f)
-                    textCenter(canvas, "${index + 1}", x + key / 2f, y + key * .7f, 58f, when {
+                    textCenter(canvas, "${index + 1}", x + layout.key / 2f, y + layout.key * .7f, 58f, when {
                         focused -> ink
                         chosen -> gold
                         else -> cream
                     }, true)
                     if (chosen) {
                         paint.color = gold
-                        canvas.drawCircle(x + key - 18f, y + 18f, 8f, paint)
+                        canvas.drawCircle(x + layout.key - 18f, y + 18f, 8f, paint)
                     }
                 }
             }
         }
-        val footer = if (pickerMode == PickerMode.VALUE) {
-            "方向键选择 · 确定键填入"
-        } else if (pickerLimitReached) {
-            "每格最多预选 4 个数字"
+        if (pickerMode == PickerMode.CANDIDATES) {
+            val buttonTop = layout.bottom - 92f
+            val middle = (layout.left + layout.right) / 2f
+            actionButton(canvas, layout.left + 34f, buttonTop, middle - 8f, layout.bottom - 24f, "取消", false, false)
+            actionButton(canvas, middle + 8f, buttonTop, layout.right - 34f, layout.bottom - 24f, "保存预选", false, true)
+            val footer = if (pickerLimitReached) "每格最多预选 4 个数字" else "点按数字切换 · 遥控器菜单键切换"
+            textCenter(canvas, footer, (layout.left + layout.right) / 2f, layout.bottom - 112f, 22f, if (pickerLimitReached) coral else muted)
         } else {
-            "菜单键选中/取消 · 确定键完成"
+            textCenter(canvas, "点按数字填入 · 遥控器确定键填入", (layout.left + layout.right) / 2f, layout.bottom - 28f, 22f, muted)
         }
-        textCenter(canvas, footer, (left + right) / 2f, top + panelHeight - 28f, 22f, if (pickerLimitReached) coral else muted)
+    }
+
+    private fun pickerLayout(size: BoardSize): PickerLayout {
+        val columns = if (size == BoardSize.FOUR) 2 else 3
+        val rows = (size.side + columns - 1) / columns
+        val panelWidth = if (size == BoardSize.FOUR) 500f else 620f
+        val key = if (size == BoardSize.FOUR) 144f else 128f
+        val gap = 16f
+        val footerHeight = if (pickerMode == PickerMode.CANDIDATES) 170f else 75f
+        val panelHeight = 125f + rows * (key + gap) + footerHeight
+        val right = 1848f
+        val left = right - panelWidth
+        val top = (1080f - panelHeight) / 2f
+        val gridWidth = columns * key + (columns - 1) * gap
+        return PickerLayout(
+            columns = columns,
+            rows = rows,
+            key = key,
+            gap = gap,
+            left = left,
+            top = top,
+            right = right,
+            bottom = top + panelHeight,
+            gridLeft = (left + right - gridWidth) / 2f,
+            gridTop = top + 105f
+        )
     }
 
     private fun drawReward(canvas: Canvas) {

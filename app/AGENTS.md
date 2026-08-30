@@ -1,6 +1,6 @@
 # Android 应用模块指南
 
-> 最后更新：2026-08-29
+> 最后更新：2026-08-30
 > 位置：`app/`
 
 ## 1. 概述
@@ -9,16 +9,18 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.1.2 (6)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.2.0 (7)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
-- `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用和遥控器入口。
-- `src/main/java/com/kanayama/sudokuassistant/SudokuGameView.kt`：页面状态机、绘制、计时和输入核心。
+- `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
+- `src/main/java/com/kanayama/sudokuassistant/SudokuGameView.kt`：页面状态机、绘制、计时、遥控器和触摸输入核心。
+- `src/main/java/com/kanayama/sudokuassistant/ViewportTransform.kt`：将不同宽高比设备的视图坐标等比映射到 1920×1080 设计坐标。
 - `src/test/java/com/kanayama/sudokuassistant/model/SudokuGeneratorTest.kt`：生成器、整盘规则校验与多解题回归测试。
 
 ## 3. 设计约定
 
 - 生产 UI 使用原生 View，不引入 Compose；这是小米电视首键延迟的兼容性约束。
+- 横屏手机和平板使用与电视相同的 1920×1080 设计坐标，必须等比居中并通过 `ViewportTransform` 反算触摸坐标。
 - 游戏中确定键打开普通填数窗口；空格按菜单键打开预选窗口，窗口内菜单键切换最多 4 个预选数字、确定键保存。
 - 数字面板默认焦点由 `BoardSize.defaultPickerValue` 决定：四宫和六宫为 2，九宫为 5；空白预选面板沿用该值。
 - 完成一盘后按原始题面及行、列、宫规则判定，不得要求玩家答案与生成时保留的某一组解逐格相同。
