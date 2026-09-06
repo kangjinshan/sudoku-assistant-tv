@@ -1,21 +1,23 @@
 # Android 应用模块指南
 
-> 最后更新：2026-08-30
+> 最后更新：2026-09-06
 > 位置：`app/`
 
 ## 1. 概述
 
-该模块产出数独助手 TV APK。`build.gradle.kts` 定义包名、SDK、Release 压缩和签名；`src/main` 保存生产代码与资源；`src/test` 保存纯 JVM 规则测试。
+该模块产出包含数独和 24 点玩法的 TV APK。`build.gradle.kts` 定义包名、SDK、Release 压缩和签名；`src/main` 保存生产代码与资源；`src/test` 保存纯 JVM 规则测试。
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.2.0 (7)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.3.0 (8)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
-- `src/main/java/com/kanayama/sudokuassistant/SudokuGameView.kt`：页面状态机、绘制、计时、遥控器和触摸输入核心。
+- `src/main/java/com/kanayama/sudokuassistant/SudokuGameView.kt`：数独与 24 点页面状态机、绘制、计时、遥控器和触摸输入核心。
+- `src/main/java/com/kanayama/sudokuassistant/model/TwentyFour.kt`：24 点题目生成、整数解搜索、四则运算与数字合并状态。
 - `src/main/java/com/kanayama/sudokuassistant/ViewportTransform.kt`：将不同宽高比设备的视图坐标等比映射到 1920×1080 设计坐标。
 - `src/test/java/com/kanayama/sudokuassistant/model/SudokuGeneratorTest.kt`：生成器、整盘规则校验与多解题回归测试。
+- `src/test/java/com/kanayama/sudokuassistant/model/TwentyFourGeneratorTest.kt`：24 点可解性、整除、合并位置、通关和重置回归测试。
 
 ## 3. 设计约定
 
@@ -24,6 +26,7 @@
 - 游戏中确定键打开普通填数窗口；空格按菜单键打开预选窗口，窗口内菜单键切换最多 4 个预选数字、确定键保存。
 - 数字面板默认焦点由 `BoardSize.defaultPickerValue` 决定：四宫和六宫为 2，九宫为 5；空白预选面板沿用该值。
 - 完成一盘后按原始题面及行、列、宫规则判定，不得要求玩家答案与生成时保留的某一组解逐格相同。
+- 24 点题目必须保证存在整数四则运算解；计算顺序固定为第一个数字、运算符、第二个数字，结果保留在第二个位置，除法不得产生分数。
 - Release 当前用 debug signingConfig 便于同一台开发电视覆盖安装；正式商店分发前必须替换为受控发布密钥。
 - 不得提升最低 SDK 而不验证 Android 7.0 电视兼容性。
 - 不得添加网络权限或远程服务；应用应保持完全离线。
@@ -34,7 +37,7 @@
 系统启动 MainActivity
   → 创建 SudokuGameView
   → dispatchKeyEvent 转发遥控器按键
-  → SudokuGameView 更新状态并 invalidate
+  → SudokuGameView 更新数独或 24 点状态并 invalidate
   → onDraw 立即绘制新画面
 ```
 

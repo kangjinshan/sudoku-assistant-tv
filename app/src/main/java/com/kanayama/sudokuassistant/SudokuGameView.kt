@@ -13,13 +13,18 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import com.kanayama.sudokuassistant.data.ScoreRepository
+import com.kanayama.sudokuassistant.model.ArithmeticOperation
 import com.kanayama.sudokuassistant.model.BoardSize
 import com.kanayama.sudokuassistant.model.Difficulty
 import com.kanayama.sudokuassistant.model.Puzzle
 import com.kanayama.sudokuassistant.model.SudokuGenerator
+import com.kanayama.sudokuassistant.model.TwentyFourGenerator
+import com.kanayama.sudokuassistant.model.TwentyFourMoveStatus
+import com.kanayama.sudokuassistant.model.TwentyFourPuzzle
+import com.kanayama.sudokuassistant.model.TwentyFourRound
 import kotlin.math.min
 
-private enum class Page { HOME, GAME, REWARD, SCORES }
+private enum class Page { HOME, GAME, TWENTY_FOUR, REWARD, SCORES }
 private enum class PickerMode { VALUE, CANDIDATES }
 
 private data class PickerLayout(
@@ -50,7 +55,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var page = Page.HOME
     private var boardSize = BoardSize.NINE
     private var difficulty = Difficulty.EASY
-    private var homeFocus = 7
+    private var homeFocus = 8
     private var scoreFocus = 6
     private var rewardFocus = 1
     private var exitOpen = false
@@ -69,6 +74,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var startedAt = 0L
     private var elapsedSeconds = 0L
     private var newRecord = false
+    private var twentyFourPuzzle: TwentyFourPuzzle? = null
+    private var twentyFourRound: TwentyFourRound? = null
+    private var twentyFourFocus = 0
+    private var twentyFourSource: Int? = null
+    private var twentyFourOperation: ArithmeticOperation? = null
+    private var twentyFourMessage = "先选择一个数字"
 
     private val touchDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(event: MotionEvent): Boolean = true
@@ -124,6 +135,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         when (page) {
             Page.HOME -> drawHome(canvas)
             Page.GAME -> drawGame(canvas)
+            Page.TWENTY_FOUR -> drawTwentyFour(canvas)
             Page.REWARD -> drawReward(canvas)
             Page.SCORES -> drawScores(canvas)
         }
@@ -140,6 +152,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         val handled = when (page) {
             Page.HOME -> handleHomeKey(keyCode)
             Page.GAME -> handleGameKey(keyCode)
+            Page.TWENTY_FOUR -> handleTwentyFourKey(keyCode)
             Page.REWARD -> handleRewardKey(keyCode)
             Page.SCORES -> handleScoresKey(keyCode)
         }
@@ -150,6 +163,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun handleTap(x: Float, y: Float): Boolean = when (page) {
         Page.HOME -> handleHomeTap(x, y)
         Page.GAME -> handleGameTap(x, y)
+        Page.TWENTY_FOUR -> handleTwentyFourTap(x, y)
         Page.REWARD -> handleRewardTap(x, y)
         Page.SCORES -> handleScoresTap(x, y)
     }
@@ -197,13 +211,18 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             }
         }
         return when {
-            contains(x, y, 802f, 800f, 1155f, 920f) -> {
+            contains(x, y, 802f, 800f, 1076f, 920f) -> {
                 homeFocus = 6
                 activateHome()
                 true
             }
-            contains(x, y, 1187f, 800f, 1716f, 920f) -> {
+            contains(x, y, 1092f, 800f, 1366f, 920f) -> {
                 homeFocus = 7
+                activateHome()
+                true
+            }
+            contains(x, y, 1382f, 800f, 1716f, 920f) -> {
+                homeFocus = 8
                 activateHome()
                 true
             }
@@ -262,6 +281,197 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             return true
         }
         return false
+    }
+
+    private fun handleTwentyFourTap(x: Float, y: Float): Boolean {
+        repeat(4) { index ->
+            if (twentyFourNumberRect(index).contains(x, y)) {
+                twentyFourFocus = index
+                selectTwentyFourNumber(index)
+                return true
+            }
+        }
+        ArithmeticOperation.entries.forEachIndexed { index, operation ->
+            if (twentyFourOperationRect(index).contains(x, y)) {
+                twentyFourFocus = index + 4
+                selectTwentyFourOperation(operation)
+                return true
+            }
+        }
+        repeat(3) { index ->
+            if (twentyFourUtilityRect(index).contains(x, y)) {
+                twentyFourFocus = index + 8
+                activateTwentyFourFocus()
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun startTwentyFourGame() {
+        val generated = TwentyFourGenerator.generate()
+        twentyFourPuzzle = generated
+        twentyFourRound = TwentyFourRound(generated.numbers)
+        twentyFourFocus = 0
+        twentyFourSource = null
+        twentyFourOperation = null
+        twentyFourMessage = "先选择一个数字"
+        page = Page.TWENTY_FOUR
+    }
+
+    private fun resetTwentyFourGame() {
+        twentyFourRound?.reset()
+        twentyFourFocus = 0
+        twentyFourSource = null
+        twentyFourOperation = null
+        twentyFourMessage = "已恢复原题，请重新尝试"
+    }
+
+    private fun handleTwentyFourKey(keyCode: Int): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN -> moveTwentyFourFocus(keyCode)
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> activateTwentyFourFocus()
+            KeyEvent.KEYCODE_MENU -> resetTwentyFourGame()
+            KeyEvent.KEYCODE_BACK -> showHome()
+            else -> return false
+        }
+        return true
+    }
+
+    private fun moveTwentyFourFocus(keyCode: Int) {
+        val candidates = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> when (twentyFourFocus) {
+                1 -> intArrayOf(0, 1)
+                3 -> intArrayOf(2, 3)
+                5 -> intArrayOf(4)
+                6 -> intArrayOf(5)
+                7 -> intArrayOf(6)
+                9 -> intArrayOf(8)
+                10 -> intArrayOf(9)
+                else -> intArrayOf(twentyFourFocus)
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> when (twentyFourFocus) {
+                0 -> intArrayOf(1, 0)
+                2 -> intArrayOf(3, 2)
+                4 -> intArrayOf(5)
+                5 -> intArrayOf(6)
+                6 -> intArrayOf(7)
+                8 -> intArrayOf(9)
+                9 -> intArrayOf(10)
+                else -> intArrayOf(twentyFourFocus)
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> when (twentyFourFocus) {
+                2 -> intArrayOf(0, 1, 2)
+                3 -> intArrayOf(1, 0, 3)
+                4, 5 -> intArrayOf(2, 3, 0, 1, twentyFourFocus)
+                6, 7 -> intArrayOf(3, 2, 1, 0, twentyFourFocus)
+                8 -> intArrayOf(4)
+                9 -> intArrayOf(5)
+                10 -> intArrayOf(7)
+                else -> intArrayOf(twentyFourFocus)
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> when (twentyFourFocus) {
+                0 -> intArrayOf(2, 3, 4)
+                1 -> intArrayOf(3, 2, 6)
+                2 -> intArrayOf(4)
+                3 -> intArrayOf(6)
+                4 -> intArrayOf(8)
+                5, 6 -> intArrayOf(9)
+                7 -> intArrayOf(10)
+                else -> intArrayOf(twentyFourFocus)
+            }
+            else -> intArrayOf(twentyFourFocus)
+        }
+        val values = twentyFourRound?.values.orEmpty()
+        candidates.firstOrNull { candidate ->
+            candidate !in 0..3 ||
+                (values.getOrNull(candidate) != null && (twentyFourOperation == null || candidate != twentyFourSource))
+        }
+            ?.let { twentyFourFocus = it }
+    }
+
+    private fun activateTwentyFourFocus() {
+        when (twentyFourFocus) {
+            in 0..3 -> selectTwentyFourNumber(twentyFourFocus)
+            in 4..7 -> selectTwentyFourOperation(ArithmeticOperation.entries[twentyFourFocus - 4])
+            8 -> resetTwentyFourGame()
+            9 -> startTwentyFourGame()
+            10 -> showHome()
+        }
+    }
+
+    private fun selectTwentyFourNumber(index: Int) {
+        val round = twentyFourRound ?: return
+        val value = round.values.getOrNull(index) ?: return
+        if (round.remainingCount == 1) {
+            twentyFourMessage = if (round.isSolved) "太棒了，正好 24！" else "结果是 $value，按“重置”再试一次"
+            return
+        }
+
+        val sourceIndex = twentyFourSource
+        val operation = twentyFourOperation
+        if (sourceIndex == null || operation == null) {
+            twentyFourSource = index
+            twentyFourOperation = null
+            twentyFourMessage = "已选择 $value，请选择运算符"
+            return
+        }
+        if (sourceIndex == index) {
+            twentyFourMessage = "请选择另一个数字"
+            return
+        }
+
+        val move = round.combine(sourceIndex, index, operation)
+        when (move.status) {
+            TwentyFourMoveStatus.APPLIED -> twentyFourMessage = "得到 ${move.result}，继续计算"
+            TwentyFourMoveStatus.SOLVED -> twentyFourMessage = "太棒了，正好 24！"
+            TwentyFourMoveStatus.NOT_TWENTY_FOUR -> twentyFourMessage = "结果是 ${move.result}，按“重置”再试一次"
+            TwentyFourMoveStatus.INVALID_OPERATION -> {
+                twentyFourMessage = if (operation == ArithmeticOperation.DIVIDE) {
+                    "除法必须整除，换一种算法试试"
+                } else {
+                    "这一步无法计算，请换一种算法"
+                }
+                return
+            }
+            TwentyFourMoveStatus.INVALID_SELECTION -> {
+                twentyFourMessage = "请选择两个不同的数字"
+                return
+            }
+        }
+        twentyFourSource = null
+        twentyFourOperation = null
+        twentyFourFocus = index
+    }
+
+    private fun selectTwentyFourOperation(operation: ArithmeticOperation) {
+        val sourceIndex = twentyFourSource
+        val sourceValue = sourceIndex?.let { twentyFourRound?.values?.getOrNull(it) }
+        if (sourceValue == null) {
+            twentyFourMessage = "请先选择一个数字"
+            return
+        }
+        twentyFourOperation = operation
+        twentyFourMessage = "$sourceValue ${operation.symbol} … 请选择第二个数字"
+    }
+
+    private fun twentyFourNumberRect(index: Int): RectF {
+        val left = if (index % 2 == 0) 520f else 1020f
+        val top = if (index < 2) 150f else 390f
+        return RectF(left, top, left + 380f, top + 190f)
+    }
+
+    private fun twentyFourOperationRect(index: Int): RectF {
+        val left = 410f + index * 280f
+        return RectF(left, 680f, left + 250f, 810f)
+    }
+
+    private fun twentyFourUtilityRect(index: Int): RectF {
+        val left = 660f + index * 270f
+        return RectF(left, 920f, left + 240f, 1005f)
     }
 
     private fun handleRewardTap(x: Float, y: Float): Boolean = when {
@@ -325,23 +535,25 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> homeFocus = when (homeFocus) {
-                1, 2, 4, 5, 7 -> homeFocus - 1
+                1, 2, 4, 5, 7, 8 -> homeFocus - 1
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> homeFocus = when (homeFocus) {
-                0, 1, 3, 4, 6 -> homeFocus + 1
+                0, 1, 3, 4, 6, 7 -> homeFocus + 1
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_UP -> homeFocus = when (homeFocus) {
                 in 3..5 -> homeFocus - 3
                 6 -> 3
-                7 -> 5
+                7 -> 4
+                8 -> 5
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> homeFocus = when (homeFocus) {
                 in 0..2 -> homeFocus + 3
                 3 -> 6
-                4, 5 -> 7
+                4 -> 7
+                5 -> 8
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> activateHome()
@@ -360,7 +572,8 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             4 -> difficulty = Difficulty.MEDIUM
             5 -> difficulty = Difficulty.HARD
             6 -> { scoreFocus = 6; page = Page.SCORES }
-            7 -> startGame()
+            7 -> startTwentyFourGame()
+            8 -> startGame()
         }
     }
 
@@ -534,8 +747,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         entries = IntArray(0)
         candidateMasks = IntArray(0)
         pickerOpen = false
+        twentyFourPuzzle = null
+        twentyFourRound = null
+        twentyFourSource = null
+        twentyFourOperation = null
         exitOpen = false
-        homeFocus = 7
+        homeFocus = 8
         page = Page.HOME
     }
 
@@ -550,7 +767,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun drawHome(canvas: Canvas) {
         text(canvas, "数独", 128f, 350f, 126f, cream, true)
         text(canvas, "助手", 128f, 555f, 126f, mint, true)
-        text(canvas, "坐下来，专注一局。", 128f, 700f, 38f, muted)
+        text(canvas, "数独与 24 点，专注一局。", 128f, 700f, 38f, muted)
         paint.color = mint
         canvas.drawCircle(137f, 830f, 10f, paint)
         text(canvas, "遥控器与触摸屏均可操作", 172f, 844f, 28f, cream)
@@ -568,8 +785,9 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             val left = 802f + index * 314f
             optionCard(canvas, left, 604f, left + 286f, 790f, item.label, "已知 ${SudokuGenerator.clueCount(boardSize, item)} 格", difficulty == item, homeFocus == index + 3)
         }
-        actionButton(canvas, 802f, 800f, 1155f, 920f, "最好成绩", homeFocus == 6, false)
-        actionButton(canvas, 1187f, 800f, 1716f, 920f, "开始游戏", homeFocus == 7, true)
+        actionButton(canvas, 802f, 800f, 1076f, 920f, "最好成绩", homeFocus == 6, false)
+        actionButton(canvas, 1092f, 800f, 1366f, 920f, "24 点", homeFocus == 7, false)
+        actionButton(canvas, 1382f, 800f, 1716f, 920f, "开始数独", homeFocus == 8, true)
         if (exitOpen) drawExitDialog(canvas)
     }
 
@@ -750,6 +968,78 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             gridLeft = (left + right - gridWidth) / 2f,
             gridTop = top + 105f
         )
+    }
+
+    private fun drawTwentyFour(canvas: Canvas) {
+        val currentPuzzle = twentyFourPuzzle ?: return
+        val round = twentyFourRound ?: return
+        val values = round.values
+
+        text(canvas, "24 点挑战", 72f, 98f, 58f, cream, true)
+        text(canvas, "用完四个数字，让最后的结果等于 24", 72f, 138f, 26f, muted)
+        text(canvas, "目标  24", 1848f, 98f, 40f, gold, true, Paint.Align.RIGHT)
+        text(canvas, "初始数字  ${currentPuzzle.numbers.joinToString("  ·  ")}", 1848f, 138f, 24f, muted, align = Paint.Align.RIGHT)
+
+        values.forEachIndexed { index, value ->
+            val rect = twentyFourNumberRect(index)
+            val isSource = index == twentyFourSource
+            val focused = index == twentyFourFocus
+            val fill = when {
+                value == null -> Color.rgb(11, 27, 39)
+                isSource -> Color.rgb(79, 64, 30)
+                focused -> panelLight
+                else -> panel
+            }
+            rounded(canvas, rect.left, rect.top, rect.right, rect.bottom, 28f, fill)
+            strokeRound(
+                canvas,
+                rect.left,
+                rect.top,
+                rect.right,
+                rect.bottom,
+                28f,
+                when {
+                    focused -> cream
+                    isSource -> gold
+                    else -> panelLight
+                },
+                if (focused) 7f else if (isSource) 5f else 3f
+            )
+            if (value == null) {
+                textCenter(canvas, "已合并", rect.centerX(), rect.centerY() + 12f, 30f, Color.rgb(77, 99, 112))
+            } else {
+                if (isSource) textCenter(canvas, "第一个数字", rect.centerX(), rect.top + 38f, 22f, gold, true)
+                textCenter(canvas, value.toString(), rect.centerX(), rect.top + 135f, 96f, if (isSource) gold else cream, true)
+            }
+        }
+
+        textCenter(canvas, "先选数字  →  选运算符  →  选第二个数字", 960f, 635f, 28f, muted)
+        ArithmeticOperation.entries.forEachIndexed { index, operation ->
+            val rect = twentyFourOperationRect(index)
+            val selected = operation == twentyFourOperation
+            val focused = twentyFourFocus == index + 4
+            rounded(canvas, rect.left, rect.top, rect.right, rect.bottom, 24f, when {
+                selected -> gold
+                focused -> mint
+                else -> panel
+            })
+            strokeRound(canvas, rect.left, rect.top, rect.right, rect.bottom, 24f, if (focused) cream else panelLight, if (focused) 7f else 3f)
+            textCenter(canvas, operation.symbol, rect.centerX(), rect.top + 91f, 70f, if (selected || focused) ink else cream, true)
+        }
+
+        val statusColor = when {
+            round.isSolved -> mint
+            round.remainingCount == 1 -> coral
+            else -> cream
+        }
+        textCenter(canvas, twentyFourMessage, 960f, 872f, 30f, statusColor, true)
+        val utilityLabels = listOf("重置", "换一题", "返回首页")
+        utilityLabels.forEachIndexed { index, label ->
+            val rect = twentyFourUtilityRect(index)
+            actionButton(canvas, rect.left, rect.top, rect.right, rect.bottom, label, twentyFourFocus == index + 8, index == 1 && round.remainingCount == 1)
+        }
+        text(canvas, "遥控器菜单键也可重置", 72f, 1030f, 22f, muted)
+        text(canvas, "除法只允许整除", 1848f, 1030f, 22f, muted, align = Paint.Align.RIGHT)
     }
 
     private fun drawReward(canvas: Canvas) {

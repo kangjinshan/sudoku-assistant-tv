@@ -1,10 +1,10 @@
-# 数独助手（电视与触摸屏版）：Agent 协作指南
+# 数独与 24 点（电视与触摸屏版）：Agent 协作指南
 
-> 最后更新：2026-08-30
+> 最后更新：2026-09-06
 
 ## 1. 系统概述
 
-本项目是面向 Android TV、小米电视、横屏 Android 手机、Android 平板及小学生家庭练习场景的离线数独应用。业务边界包括题目生成、遥控器与触摸交互、计时、答案校验、通关反馈及本地最好成绩；不包含账号、联网、广告、云同步或中途续玩。
+本项目是面向 Android TV、小米电视、横屏 Android 手机、Android 平板及小学生家庭练习场景的离线数字游戏，包含数独与 24 点。业务边界包括题目生成、遥控器与触摸交互、数独计时与成绩、答案校验、24 点整数四则运算合并及重置；不包含账号、联网、广告、云同步或中途续玩。
 
 技术栈为 Kotlin、Android 原生 `View`/`Canvas`、`SharedPreferences` 和 Gradle。界面刻意不使用 Compose：目标小米电视曾出现 Compose 首次焦点响应延迟，原生 View 是必须保留的性能约束。
 
@@ -14,10 +14,10 @@
 |---|---|---|---|
 | `app/` | Android 应用模块与打包配置 | Release 开启 R8、资源压缩并使用本地调试签名 | [app/AGENTS.md](app/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/` | Activity、状态机、绘制、遥控器与触摸事件 | 遥控器进入 `handleKey`，触摸经等比坐标反算进入同一状态机 | [应用层指南](app/src/main/java/com/kanayama/sudokuassistant/AGENTS.md) |
-| `app/src/main/java/com/kanayama/sudokuassistant/model/` | 数独规格、生成、校验与求解 | 支持 4×4、6×6、9×9；至少保证有解 | [模型指南](app/src/main/java/com/kanayama/sudokuassistant/model/AGENTS.md) |
+| `app/src/main/java/com/kanayama/sudokuassistant/model/` | 数独与 24 点的生成、校验和运算规则 | 数独至少有解；24 点使用 1–10 的四个数字并保证存在整数解 | [模型指南](app/src/main/java/com/kanayama/sudokuassistant/model/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/data/` | 本地成绩持久化 | 每个宫格与难度组合保留最快 10 次 | [数据指南](app/src/main/java/com/kanayama/sudokuassistant/data/AGENTS.md) |
 | `app/src/main/res/` | Manifest、主题、高清图标和 TV 横幅 | Android 资源目录禁止存放 Markdown，维护规则统一见应用模块文档 | [应用模块指南](app/AGENTS.md) |
-| `app/src/test/` | JVM 单元测试 | 穷举三种宫格与三档难度的生成校验 | [测试指南](app/src/test/AGENTS.md) |
+| `app/src/test/` | JVM 单元测试 | 覆盖数独生成/校验、24 点整数解与合并规则、视口映射 | [测试指南](app/src/test/AGENTS.md) |
 | `gradle/` | Gradle Wrapper | 固定 Gradle 8.9 | [构建工具指南](gradle/AGENTS.md) |
 
 ## 3. 核心业务场景索引
@@ -34,6 +34,18 @@
   - 入口：`SudokuGameView.startGame`
   - 核心逻辑：`SudokuGenerator.generate` → `generateSolution` → `isValidSolution` → `hasSolution`
   - 副作用：启动单调时钟计时；不持久化未完成棋局
+- **生成一局 24 点**
+  - 入口：`SudokuGameView.startTwentyFourGame`
+  - 核心逻辑：`TwentyFourGenerator.generate` → `findSolution` → 整数四则运算回溯
+  - 副作用：只创建内存中的 `TwentyFourPuzzle` 与 `TwentyFourRound`，不写磁盘
+- **进行 24 点运算**
+  - 入口：`SudokuGameView.handleTwentyFourKey`、`handleTwentyFourTap`
+  - 核心逻辑：`selectTwentyFourNumber` → `selectTwentyFourOperation` → `TwentyFourRound.combine`
+  - 副作用：结果写入第二个数字的位置，第一个数字在当前局内消失
+- **重置或更换 24 点题目**
+  - 入口：24 点页面“重置”“换一题”按钮或遥控器菜单键
+  - 核心逻辑：`SudokuGameView.resetTwentyFourGame`、`startTwentyFourGame`
+  - 副作用：重置恢复原四个数字；换题重新生成一组保证可解的数字
 - **遥控器填写数字**
   - 入口：`MainActivity.dispatchKeyEvent`
   - 核心逻辑：`SudokuGameView.handleGameKey` → `enterValue`
@@ -70,9 +82,11 @@
 - 预选：遥控器在空格按菜单键进入预选窗口；触摸屏长按空格进入。每格最多 4 个，按升序绘制到四角。
 - 布局：`SudokuGameView` 以 1920×1080 为设计坐标等比居中缩放，禁止分别拉伸横纵轴；棋盘保持 984×984 设计像素，数字面板必须位于右侧且不得覆盖棋盘。
 - 规则：六宫采用 2 行×3 列分宫；生成题可多解，但必须经 `hasSolution` 确认至少有解。
+- 24 点：每题必须由 4 个 1–10 的整数构成，并经 `TwentyFourGenerator.findSolution` 确认存在只含整数中间结果的解；除法仅允许整除，减法允许负数。
+- 24 点合并：操作顺序固定为第一个数字、运算符、第二个数字；`TwentyFourRound.combine` 必须清空第一个位置，并把结果写入第二个位置。重置只恢复当前题，换题才重新生成数字。
 - 校验：填写过程不即时判错；仅在最后一个空格填满后统一校验并自动提交。不得逐格对比生成答案，多解题中任何满足原始题面及行、列、宫规则的完整答案都必须判对。
 - 计时：以 `SystemClock.elapsedRealtime()` 计算真实用时，刷新任务只负责重绘，不能用累计 tick 代替真实时钟。
-- 存储：只保存每个 `BoardSize × Difficulty` 的最快 10 次秒数，不保存未完成棋局。
+- 存储：只保存每个 `BoardSize × Difficulty` 的数独最快 10 次秒数；24 点与未完成棋局均不持久化。
 - 发布：电视安装使用 Release APK 和覆盖安装；禁止为部署执行卸载或清除应用数据。
 - 依赖：应用运行时不得增加网络、账号、音频或广告依赖。
 
