@@ -9,7 +9,7 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.4.0 (9)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.5.0 (10)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
@@ -25,6 +25,7 @@
 - 横屏手机和平板使用与电视相同的 1920×1080 设计坐标，必须等比居中并通过 `ViewportTransform` 反算触摸坐标。
 - 游戏中确定键打开普通填数窗口；空格按菜单键打开预选窗口，窗口内菜单键切换最多 4 个预选数字、确定键保存。
 - 数字面板默认焦点由 `BoardSize.defaultPickerValue` 决定：四宫和六宫为 2，九宫为 5；空白预选面板沿用该值。
+- 普通数字面板底部“清除”支持触摸点按与遥控器从数字最底行按下后确定；通过 `enterValue(0)` 清空当前可填写格和预选、重置错误提示，不触发提交。按上恢复原数字焦点。
 - 完成一盘后按原始题面及行、列、宫规则判定，不得要求玩家答案与生成时保留的某一组解逐格相同。
 - 24 点题目必须保证存在整数四则运算解；计算顺序固定为第一个数字、运算符、第二个数字，结果保留在第二个位置，除法不得产生分数。
 - 24 点菜单键通过 `showTwentyFourHint` 显示原题参考解的最后一步（允许 `1 × 24`）；只改提示文案，重置仍通过“重置”按钮执行。

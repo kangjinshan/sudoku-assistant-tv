@@ -26,6 +26,7 @@
 - **填写数字**：`handleGameKey` → 确定键打开普通 picker → 按 `BoardSize.defaultPickerValue` 初始化焦点（四宫/六宫为 2，九宫为 5）→ 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
 - **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **触摸填数**：点按可填写格打开普通 picker，点按数字立即填入；长按空格打开预选 picker，点按数字切换草稿，通过“保存预选”提交。
+- **清除数字**：普通 picker 底部提供“清除”，绘制和触摸共用 `PickerLayout.clearButton`；遥控器从数字最底行按下设置 `pickerClearFocused`，按上恢复原数字焦点。点按清除或聚焦后确定均关闭面板并调用 `enterValue(0)`，清空当前可填写格及预选、重置错误提示，不触发自动提交，保持计时和棋盘焦点。每次打开普通或预选 picker 都重置清除焦点。
 - **开始 24 点**：首页 `homeFocus == 7` → `startTwentyFourGame` → `TwentyFourGenerator.generate` → 创建 `TwentyFourRound` → `Page.TWENTY_FOUR`。
 - **24 点遥控器输入**：`handleTwentyFourKey` → `moveTwentyFourFocus` 在 2×2 数字、四个运算符和三个操作按钮间移动 → `activateTwentyFourFocus` 执行选择。
 - **24 点触摸输入**：`handleTwentyFourTap` 使用 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect` 命中同一组状态变更方法。
@@ -50,6 +51,7 @@
 - 调整数独盘尺寸：修改 `drawGame` 的 `boardPixels`；同时验证 4/6/9 三种字号和粗分隔线。
 - 调整设计画布或宽高比适配：同步修改 `ViewportTransform` 常量、Canvas 变换、触摸反算测试，禁止横纵轴独立缩放。
 - 调整数字浮层：修改 `drawPicker` 的 `panelWidth`、`key` 和右边界，确保左边界大于棋盘右边界 1080。
+- 调整清除按钮：同步检查 `PickerLayout.clearButton`、`pickerClearFocused`、`handlePickerTap`、`handleGameKey` 和 `drawPicker`；两种面板底部预留 170 设计像素，四宫/六宫/九宫均须可达且不覆盖棋盘。
 - 调整数字浮层默认焦点：修改 `BoardSize.defaultPickerValue`，并同步 README、模型测试和空白预选面板行为。
 - 调整预选交互：同步检查 `pickerMode`、`pickerDraftMask`、`candidateMasks`、`togglePickerCandidate` 与 `drawGame` 的四角绘制。
 - 新增页面：扩展 `Page`、`handleKey` 和 `onDraw` 三处分支。

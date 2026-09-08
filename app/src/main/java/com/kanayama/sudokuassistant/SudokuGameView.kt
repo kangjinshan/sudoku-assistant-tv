@@ -38,7 +38,10 @@ private data class PickerLayout(
     val bottom: Float,
     val gridLeft: Float,
     val gridTop: Float
-)
+) {
+    val clearButton: RectF
+        get() = RectF(left + 34f, bottom - 92f, right - 34f, bottom - 24f)
+}
 
 class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(context) {
     private val ink = Color.rgb(8, 19, 29)
@@ -62,6 +65,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var exitSelected = false
     private var pickerOpen = false
     private var pickerSelection = 4
+    private var pickerClearFocused = false
     private var pickerMode = PickerMode.VALUE
     private var pickerDraftMask = 0
     private var pickerLimitReached = false
@@ -257,6 +261,11 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 }
                 return true
             }
+        }
+        if (pickerMode == PickerMode.VALUE && layout.clearButton.contains(x, y)) {
+            pickerOpen = false
+            enterValue(0)
+            return true
         }
         if (pickerMode == PickerMode.CANDIDATES) {
             val buttonTop = layout.bottom - 92f
@@ -603,26 +612,34 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             val row = pickerSelection / columns
             val column = pickerSelection % columns
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (column > 0) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (!pickerClearFocused && column > 0) {
                     pickerSelection--
                     pickerLimitReached = false
                 }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (column < columns - 1 && pickerSelection + 1 < current.size.side) {
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!pickerClearFocused && column < columns - 1 && pickerSelection + 1 < current.size.side) {
                     pickerSelection++
                     pickerLimitReached = false
                 }
-                KeyEvent.KEYCODE_DPAD_UP -> if (row > 0) {
-                    pickerSelection -= columns
-                    pickerLimitReached = false
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (pickerClearFocused) {
+                        pickerClearFocused = false
+                    } else if (row > 0) {
+                        pickerSelection -= columns
+                        pickerLimitReached = false
+                    }
                 }
-                KeyEvent.KEYCODE_DPAD_DOWN -> if (pickerSelection + columns < current.size.side) {
-                    pickerSelection += columns
-                    pickerLimitReached = false
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (!pickerClearFocused) {
+                    if (pickerSelection + columns < current.size.side) {
+                        pickerSelection += columns
+                        pickerLimitReached = false
+                    } else if (pickerMode == PickerMode.VALUE) {
+                        pickerClearFocused = true
+                    }
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     pickerOpen = false
                     if (pickerMode == PickerMode.VALUE) {
-                        enterValue(pickerSelection + 1)
+                        enterValue(if (pickerClearFocused) 0 else pickerSelection + 1)
                     } else {
                         candidateMasks[selectedCell] = pickerDraftMask
                     }
@@ -685,6 +702,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private fun openValuePicker(size: BoardSize) {
         pickerMode = PickerMode.VALUE
+        pickerClearFocused = false
         pickerSelection = size.defaultPickerValue - 1
         pickerDraftMask = 0
         pickerLimitReached = false
@@ -693,6 +711,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private fun openCandidatePicker(size: BoardSize) {
         pickerMode = PickerMode.CANDIDATES
+        pickerClearFocused = false
         pickerDraftMask = candidateMasks[selectedCell]
         pickerSelection = (0 until size.side).firstOrNull { pickerDraftMask and (1 shl it) != 0 }
             ?: (size.defaultPickerValue - 1)
@@ -913,7 +932,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 if (index < size.side) {
                     val x = layout.gridLeft + column * (layout.key + layout.gap)
                     val y = layout.gridTop + row * (layout.key + layout.gap)
-                    val focused = index == pickerSelection
+                    val focused = !pickerClearFocused && index == pickerSelection
                     val chosen = pickerMode == PickerMode.CANDIDATES && pickerDraftMask and (1 shl index) != 0
                     rounded(canvas, x, y, x + layout.key, y + layout.key, 18f, when {
                         focused -> mint
@@ -945,7 +964,9 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             val footer = if (pickerLimitReached) "每格最多预选 4 个数字" else "点按数字切换 · 遥控器菜单键切换"
             textCenter(canvas, footer, (layout.left + layout.right) / 2f, layout.bottom - 112f, 22f, if (pickerLimitReached) coral else muted)
         } else {
-            textCenter(canvas, "点按数字填入 · 遥控器确定键填入", (layout.left + layout.right) / 2f, layout.bottom - 28f, 22f, muted)
+            val clearButton = layout.clearButton
+            actionButton(canvas, clearButton.left, clearButton.top, clearButton.right, clearButton.bottom, "清除", pickerClearFocused, false)
+            textCenter(canvas, "点按或确定键选择 · 向下可选清除", (layout.left + layout.right) / 2f, layout.bottom - 112f, 22f, muted)
         }
     }
 
@@ -955,7 +976,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         val panelWidth = if (size == BoardSize.FOUR) 500f else 620f
         val key = if (size == BoardSize.FOUR) 144f else 128f
         val gap = 16f
-        val footerHeight = if (pickerMode == PickerMode.CANDIDATES) 170f else 75f
+        val footerHeight = 170f
         val panelHeight = 125f + rows * (key + gap) + footerHeight
         val right = 1848f
         val left = right - panelWidth
