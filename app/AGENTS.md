@@ -1,6 +1,6 @@
 # Android 应用模块指南
 
-> 最后更新：2026-09-06
+> 最后更新：2026-09-08
 > 位置：`app/`
 
 ## 1. 概述
@@ -9,7 +9,7 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.3.0 (8)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.4.0 (9)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
@@ -27,6 +27,7 @@
 - 数字面板默认焦点由 `BoardSize.defaultPickerValue` 决定：四宫和六宫为 2，九宫为 5；空白预选面板沿用该值。
 - 完成一盘后按原始题面及行、列、宫规则判定，不得要求玩家答案与生成时保留的某一组解逐格相同。
 - 24 点题目必须保证存在整数四则运算解；计算顺序固定为第一个数字、运算符、第二个数字，结果保留在第二个位置，除法不得产生分数。
+- 24 点菜单键通过 `showTwentyFourHint` 显示原题参考解的最后一步（允许 `1 × 24`）；只改提示文案，重置仍通过“重置”按钮执行。
 - Release 当前用 debug signingConfig 便于同一台开发电视覆盖安装；正式商店分发前必须替换为受控发布密钥。
 - 不得提升最低 SDK 而不验证 Android 7.0 电视兼容性。
 - 不得添加网络权限或远程服务；应用应保持完全离线。

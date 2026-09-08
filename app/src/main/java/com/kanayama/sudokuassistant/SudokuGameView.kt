@@ -327,6 +327,11 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         twentyFourMessage = "已恢复原题，请重新尝试"
     }
 
+    private fun showTwentyFourHint() {
+        val puzzle = twentyFourPuzzle ?: return
+        twentyFourMessage = "原题最后一步提示：${puzzle.finalStep.expression}"
+    }
+
     private fun handleTwentyFourKey(keyCode: Int): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT,
@@ -334,7 +339,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN -> moveTwentyFourFocus(keyCode)
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> activateTwentyFourFocus()
-            KeyEvent.KEYCODE_MENU -> resetTwentyFourGame()
+            KeyEvent.KEYCODE_MENU -> showTwentyFourHint()
             KeyEvent.KEYCODE_BACK -> showHome()
             else -> return false
         }
@@ -1038,7 +1043,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             val rect = twentyFourUtilityRect(index)
             actionButton(canvas, rect.left, rect.top, rect.right, rect.bottom, label, twentyFourFocus == index + 8, index == 1 && round.remainingCount == 1)
         }
-        text(canvas, "遥控器菜单键也可重置", 72f, 1030f, 22f, muted)
+        text(canvas, "遥控器菜单键：提示最后一步", 72f, 1030f, 22f, muted)
         text(canvas, "除法只允许整除", 1848f, 1030f, 22f, muted, align = Paint.Align.RIGHT)
     }
 

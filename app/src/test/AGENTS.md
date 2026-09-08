@@ -1,6 +1,6 @@
 # 测试目录指南
 
-> 最后更新：2026-09-06
+> 最后更新：2026-09-08
 > 位置：`app/src/test/`
 
 ## 1. 概述
@@ -17,10 +17,11 @@
 - `SudokuGenerator.generate`：被测生成入口。
 - `SudokuGenerator.isValidSolution`：完整盘合法性断言。
 - `SudokuGenerator.hasSolution`：题面可解性断言。
-- `TwentyFourGeneratorTest.generatedPuzzlesUseFourNumbersFromOneToTenAndHaveIntegerSolution`：对 100 个固定种子验证数字范围与整数可解性。
+- `TwentyFourGeneratorTest.generatedPuzzlesUseFourNumbersFromOneToTenAndHaveIntegerSolution`：对 100 个固定种子验证数字范围与整数可解性，并独立解析完整参考解，确认用完所有原始数字、每步整除及最终运算与提示一致。
 - `TwentyFourGeneratorTest.divisionOnlyAcceptsIntegerResults`：锁定除数非零且必须整除的约束。
 - `TwentyFourGeneratorTest.combiningRemovesTheSourceAndKeepsTheResultAtTheTarget`：验证 source 消失、结果落到 target、最终 24 通关及重置。
 - `TwentyFourGeneratorTest.invalidMoveDoesNotChangeTheRound`：验证非法除法不会修改局面。
+- `TwentyFourGeneratorTest.finalStepHintOnlyRevealsTheLastOperation`：验证 `1 × 24` 合法提示、仅最后一步的文案、负数括号及减除操作数顺序。
 - `ViewportTransformTest`：验证 16:9、超宽手机和 4:3 平板的等比居中及触摸坐标反算。
 
 ## 3. 设计约定

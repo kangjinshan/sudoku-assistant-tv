@@ -1,6 +1,6 @@
 # 应用交互模块开发指南
 
-> 最后更新：2026-09-06
+> 最后更新：2026-09-08
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/`
 
 ## 1. 模块概述
@@ -30,7 +30,8 @@
 - **24 点遥控器输入**：`handleTwentyFourKey` → `moveTwentyFourFocus` 在 2×2 数字、四个运算符和三个操作按钮间移动 → `activateTwentyFourFocus` 执行选择。
 - **24 点触摸输入**：`handleTwentyFourTap` 使用 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect` 命中同一组状态变更方法。
 - **24 点数字合并**：`selectTwentyFourNumber` 记录第一个数字 → `selectTwentyFourOperation` 记录运算符 → 再次 `selectTwentyFourNumber` 调用 `TwentyFourRound.combine`；第一个位置清空，结果留在第二个位置。
-- **24 点重置与换题**：`resetTwentyFourGame` 恢复当前 `TwentyFourRound.initialNumbers`；`startTwentyFourGame` 重新生成题目。遥控器菜单键直接执行重置。
+- **24 点重置与换题**：`resetTwentyFourGame` 恢复当前 `TwentyFourRound.initialNumbers`；`startTwentyFourGame` 重新生成题目。重置通过页面“重置”按钮执行。
+- **24 点提示**：遥控器菜单键 → `showTwentyFourHint` → 读取原题 `TwentyFourPuzzle.finalStep.expression`，提示区只显示最后一步两个整数和运算符（含 `1 × 24`），不显示完整表达式或等号结果；不修改局面、选择和焦点。继续操作会替换提示文案，再按菜单键可重看。
 - **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用 `SystemClock.elapsedRealtime` 重算秒数 → `invalidate`。
 - **通关记录**：`enterValue` 调用 `Puzzle.isValidCompletion` 校验题面约束及行、列、宫规则 → `ScoreRepository.record` → `Page.REWARD`；多解题的任一合法答案均可通关。
 - **退出应用**：首页返回键打开确认状态 → 左右切换 `exitSelected` → 确定后调用 Activity 提供的 `exitApp`。

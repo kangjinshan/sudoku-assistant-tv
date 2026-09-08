@@ -22,9 +22,22 @@ enum class ArithmeticOperation(val symbol: String) {
     }
 }
 
+data class TwentyFourFinalStep(
+    val left: Int,
+    val operation: ArithmeticOperation,
+    val right: Int,
+) {
+    val expression: String
+        get() {
+            fun operand(value: Int) = if (value < 0) "($value)" else value.toString()
+            return "${operand(left)} ${operation.symbol} ${operand(right)}"
+        }
+}
+
 data class TwentyFourPuzzle(
     val numbers: List<Int>,
     val solutionExpression: String,
+    val finalStep: TwentyFourFinalStep,
 ) {
     init {
         require(numbers.size == 4)
@@ -88,27 +101,32 @@ class TwentyFourRound(initialNumbers: List<Int>) {
 }
 
 object TwentyFourGenerator {
-    private data class Term(val value: Int, val expression: String)
+    private data class Term(val value: Int, val expression: String, val finalStep: TwentyFourFinalStep? = null)
 
     fun generate(random: Random = Random.Default): TwentyFourPuzzle {
         repeat(1_000) {
             val numbers = List(4) { random.nextInt(1, 11) }
-            val solution = findSolution(numbers)
-            if (solution != null) return TwentyFourPuzzle(numbers, solution)
+            val solution = findSolutionTerm(numbers)
+            if (solution != null) return TwentyFourPuzzle(numbers, solution.expression, requireNotNull(solution.finalStep))
         }
 
         val fallback = listOf(3, 5, 1, 3)
-        return TwentyFourPuzzle(fallback, requireNotNull(findSolution(fallback)))
+        val solution = requireNotNull(findSolutionTerm(fallback))
+        return TwentyFourPuzzle(fallback, solution.expression, requireNotNull(solution.finalStep))
     }
 
-    fun findSolution(numbers: List<Int>): String? {
+    fun findSolution(numbers: List<Int>): String? = findSolutionTerm(numbers)?.expression
+
+    fun findFinalStep(numbers: List<Int>): TwentyFourFinalStep? = findSolutionTerm(numbers)?.finalStep
+
+    private fun findSolutionTerm(numbers: List<Int>): Term? {
         if (numbers.size != 4 || numbers.any { it !in 1..10 }) return null
-        val visited = mutableSetOf<String>()
-        return solve(numbers.map { Term(it, it.toString()) }, visited)
+        val terms = numbers.map { Term(it, it.toString()) }
+        return solve(terms, mutableSetOf())
     }
 
-    private fun solve(terms: List<Term>, visited: MutableSet<String>): String? {
-        if (terms.size == 1) return terms.single().expression.takeIf { terms.single().value == 24 }
+    private fun solve(terms: List<Term>, visited: MutableSet<String>): Term? {
+        if (terms.size == 1) return terms.single().takeIf { it.value == 24 }
         val state = terms.map { it.value }.sorted().joinToString(",")
         if (!visited.add(state)) return null
 
@@ -136,6 +154,13 @@ object TwentyFourGenerator {
 
     private fun combine(first: Term, second: Term, operation: ArithmeticOperation): Term? {
         val result = operation.apply(first.value, second.value) ?: return null
-        return Term(result, "(${first.expression} ${operation.symbol} ${second.expression})")
+        val swap = operation in listOf(ArithmeticOperation.ADD, ArithmeticOperation.MULTIPLY) && first.value > second.value
+        val left = if (swap) second else first
+        val right = if (swap) first else second
+        return Term(
+            result,
+            "(${left.expression} ${operation.symbol} ${right.expression})",
+            TwentyFourFinalStep(left.value, operation, right.value),
+        )
     }
 }
