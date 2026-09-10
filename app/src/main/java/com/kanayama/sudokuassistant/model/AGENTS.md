@@ -1,6 +1,6 @@
 # 数独与 24 点模型模块开发指南
 
-> 最后更新：2026-09-08
+> 最后更新：2026-09-10
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/model/`
 
 ## 1. 模块概述
@@ -12,6 +12,8 @@
 | 文件 | 职责 | 关键类 / 方法 |
 |---|---|---|
 | `Sudoku.kt` | 全部领域模型与算法及棋盘交互规格 | `BoardSize`、`defaultPickerValue`、`Difficulty`、`Puzzle.isValidCompletion`、`SudokuGenerator.generate`、`isValidSolution`、`conflictingCells`、`hasSolution` |
+| `SudokuProgress.kt` | 数独进度快照与版本化编解码、范围和题面一致性校验 | `SudokuProgress.encode/decode` |
+| `TwentyFourProgress.kt` | 24 点原题、操作历史与交互状态快照；仅恢复可合法重放的未完成局 | `TwentyFourProgress.encode/decode` |
 | `TwentyFour.kt` | 24 点题目生成、整数解搜索、单步运算与局面状态 | `ArithmeticOperation.apply`、`TwentyFourGenerator.generate`、`findSolution`、`findFinalStep`、`TwentyFourFinalStep.expression`、`TwentyFourRound.combine`、`TwentyFourMoveStatus` |
 
 ## 3. 核心业务流程
@@ -22,7 +24,7 @@
 - **冲突定位**：非法完整盘由 `conflictingCells` 找出行、列或宫内的重复数字，供 UI 标出需要检查的玩家填写格。
 - **生成 24 点题目**：`TwentyFourGenerator.generate` 随机取 4 个 1–10 数字 → `findSolutionTerm` 递归组合两项 → 仅保留 `ArithmeticOperation.apply` 接受的整数结果 → 找到 24 后返回完整表达式及同一解法的最后一步；`findSolution` 返回完整表达式，`findFinalStep` 返回最后一步两个整数和运算符。
 - **执行 24 点运算**：`TwentyFourRound.combine(sourceIndex, targetIndex, operation)` → 按顺序计算 `source operation target` → 清空 source → 把结果写入 target → 根据剩余数量返回 `APPLIED`、`SOLVED` 或 `NOT_TWENTY_FOUR`。
-- **重置 24 点题目**：`TwentyFourRound.reset` 把四个位置恢复为不可变的 `initialNumbers`；不重新随机生成。
+- **重置 24 点题目**：`TwentyFourRound.reset` 清空合并历史并把四个位置恢复为不可变的 `initialNumbers`；不重新随机生成。
 
 ## 4. 关键资源与副作用
 
@@ -31,7 +33,7 @@
 - 已知数：四宫 12/10/8，六宫 27/22/18，九宫 54/43/32。
 - 数字面板默认值：四宫 2、六宫 2、九宫 5；UI 的普通面板和空白预选面板统一读取 `BoardSize.defaultPickerValue`。
 - 24 点初始数字限定为 1–10；中间结果可为 0 或负数。`DIVIDE` 在除数为 0 或不能整除时返回 `null`，UI 必须保留原局面并提示用户。
-- `TwentyFourPuzzle.solutionExpression` 保存完整参考解，不直接显示给玩家；`finalStep` 保存同一解法的最终两个整数和运算符，供菜单键提示。`TwentyFourFinalStep.expression` 不含 `= 24`，负数加括号。加法和乘法按数值升序展示操作数，减法与除法保持顺序；`1 × 24` 等合法最后一步不筛除。24 点过程、提示、结果和成功状态不持久化。
+- `TwentyFourPuzzle.solutionExpression` 保存完整参考解，不直接显示给玩家；`finalStep` 保存同一解法的最终两个整数和运算符，供菜单键提示。`TwentyFourFinalStep.expression` 不含 `= 24`，负数加括号。加法和乘法按数值升序展示操作数，减法与除法保持顺序；`1 × 24` 等合法最后一步不筛除。24 点未完成状态由 `TwentyFourProgress` 编码并重放 `TwentyFourRound.history` 恢复；成功状态不续玩，错误终局可恢复并重置。
 
 ## 5. 常见修改场景与切入点
 

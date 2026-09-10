@@ -12,11 +12,14 @@ import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import com.kanayama.sudokuassistant.data.ProgressRepository
 import com.kanayama.sudokuassistant.data.ScoreRepository
 import com.kanayama.sudokuassistant.model.ArithmeticOperation
 import com.kanayama.sudokuassistant.model.BoardSize
 import com.kanayama.sudokuassistant.model.Difficulty
 import com.kanayama.sudokuassistant.model.Puzzle
+import com.kanayama.sudokuassistant.model.SudokuProgress
+import com.kanayama.sudokuassistant.model.TwentyFourProgress
 import com.kanayama.sudokuassistant.model.SudokuGenerator
 import com.kanayama.sudokuassistant.model.TwentyFourGenerator
 import com.kanayama.sudokuassistant.model.TwentyFourMoveStatus
@@ -54,6 +57,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private val gold = Color.rgb(255, 208, 106)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val scores = ScoreRepository(context)
+    private val progress = ProgressRepository(context)
 
     private var page = Page.HOME
     private var boardSize = BoardSize.NINE
@@ -75,7 +79,8 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private var selectedCell = 0
     private var incorrectCells = emptySet<Int>()
     private var statusMessage: String? = null
-    private var startedAt = 0L
+    private var startedAt = -1L
+    private var accumulatedMillis = 0L
     private var elapsedSeconds = 0L
     private var newRecord = false
     private var twentyFourPuzzle: TwentyFourPuzzle? = null
@@ -91,7 +96,10 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         override fun onSingleTapUp(event: MotionEvent): Boolean {
             performClick()
             val point = ViewportTransform.fit(width, height).toDesignPoint(event.x, event.y)
-            if (handleTap(point.x, point.y)) invalidate()
+            if (handleTap(point.x, point.y)) {
+                saveProgress()
+                invalidate()
+            }
             return true
         }
 
@@ -103,8 +111,8 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private val ticker = object : Runnable {
         override fun run() {
-            if (page == Page.GAME && startedAt > 0L) {
-                elapsedSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000L
+            if (page == Page.GAME && startedAt >= 0L) {
+                elapsedSeconds = currentElapsedMillis() / 1000L
                 invalidate()
             }
             postDelayed(this, 250L)
@@ -115,6 +123,10 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         isFocusable = true
         isFocusableInTouchMode = true
         setBackgroundColor(ink)
+        progress.latest()?.let {
+            boardSize = it.puzzle.size
+            difficulty = it.puzzle.difficulty
+        }
     }
 
     override fun onAttachedToWindow() {
@@ -160,7 +172,10 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             Page.REWARD -> handleRewardKey(keyCode)
             Page.SCORES -> handleScoresKey(keyCode)
         }
-        if (handled) invalidate()
+        if (handled) {
+            saveProgress()
+            invalidate()
+        }
         return handled
     }
 
@@ -294,7 +309,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private fun handleTwentyFourTap(x: Float, y: Float): Boolean {
         repeat(4) { index ->
-            if (twentyFourNumberRect(index).contains(x, y)) {
+            if (twentyFourNumberRect(index).contains(x, y) && twentyFourRound?.values?.get(index) != null) {
                 twentyFourFocus = index
                 selectTwentyFourNumber(index)
                 return true
@@ -315,6 +330,24 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             }
         }
         return false
+    }
+
+    private fun resumeTwentyFourGame() {
+        val saved = progress.loadTwentyFour()
+        if (saved == null) {
+            startTwentyFourGame()
+            return
+        }
+        val numbers = saved.round.initialNumbers
+        twentyFourPuzzle = TwentyFourPuzzle(numbers,
+            requireNotNull(TwentyFourGenerator.findSolution(numbers)),
+            requireNotNull(TwentyFourGenerator.findFinalStep(numbers)))
+        twentyFourRound = saved.round
+        twentyFourFocus = saved.focus
+        twentyFourSource = saved.source
+        twentyFourOperation = saved.operation
+        twentyFourMessage = saved.message
+        page = Page.TWENTY_FOUR
     }
 
     private fun startTwentyFourGame() {
@@ -440,7 +473,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
         val move = round.combine(sourceIndex, index, operation)
         when (move.status) {
-            TwentyFourMoveStatus.APPLIED -> twentyFourMessage = "得到 ${move.result}，继续计算"
+            TwentyFourMoveStatus.APPLIED -> twentyFourMessage = "已选择 ${move.result}，请选择运算符或其他数字"
             TwentyFourMoveStatus.SOLVED -> twentyFourMessage = "太棒了，正好 24！"
             TwentyFourMoveStatus.NOT_TWENTY_FOUR -> twentyFourMessage = "结果是 ${move.result}，按“重置”再试一次"
             TwentyFourMoveStatus.INVALID_OPERATION -> {
@@ -456,7 +489,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
                 return
             }
         }
-        twentyFourSource = null
+        twentyFourSource = index.takeIf { round.remainingCount > 1 }
         twentyFourOperation = null
         twentyFourFocus = index
     }
@@ -586,23 +619,57 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             4 -> difficulty = Difficulty.MEDIUM
             5 -> difficulty = Difficulty.HARD
             6 -> { scoreFocus = 6; page = Page.SCORES }
-            7 -> startTwentyFourGame()
+            7 -> resumeTwentyFourGame()
             8 -> startGame()
         }
     }
 
     private fun startGame() {
-        val generated = SudokuGenerator.generate(boardSize, difficulty)
-        puzzle = generated
-        entries = generated.givens.copyOf()
-        candidateMasks = IntArray(entries.size)
-        selectedCell = generated.givens.indexOfFirst { it == 0 }.coerceAtLeast(0)
-        incorrectCells = emptySet()
-        statusMessage = null
+        val saved = progress.load(boardSize, difficulty)
+        val current = saved?.puzzle ?: SudokuGenerator.generate(boardSize, difficulty)
+        puzzle = current
+        entries = saved?.entries ?: current.givens.copyOf()
+        candidateMasks = saved?.candidateMasks ?: IntArray(entries.size)
+        selectedCell = saved?.selectedCell ?: current.givens.indexOfFirst { it == 0 }.coerceAtLeast(0)
+        incorrectCells = if (entries.all { it != 0 }) {
+            SudokuGenerator.conflictingCells(entries, current.size)
+                .filterTo(mutableSetOf()) { !current.isGiven(it) }
+        } else emptySet()
+        statusMessage = if (incorrectCells.isEmpty()) null else "还有数字不正确，请继续检查"
         pickerOpen = false
-        elapsedSeconds = 0L
+        accumulatedMillis = saved?.elapsedMillis ?: 0L
+        elapsedSeconds = accumulatedMillis / 1000L
         startedAt = SystemClock.elapsedRealtime()
         page = Page.GAME
+    }
+
+    private fun currentElapsedMillis(): Long = accumulatedMillis +
+        if (startedAt >= 0L) (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L) else 0L
+
+    fun saveProgress() {
+        when (page) {
+            Page.GAME -> puzzle?.let {
+                progress.save(SudokuProgress(it, entries, candidateMasks, selectedCell, currentElapsedMillis()))
+            }
+            Page.TWENTY_FOUR -> twentyFourRound?.let {
+                progress.saveTwentyFour(TwentyFourProgress(it, twentyFourFocus, twentyFourSource,
+                    twentyFourOperation, twentyFourMessage))
+            }
+            else -> Unit
+        }
+    }
+
+    fun pauseGame() {
+        if (page == Page.GAME) {
+            accumulatedMillis = currentElapsedMillis()
+            startedAt = -1L
+            elapsedSeconds = accumulatedMillis / 1000L
+        }
+        saveProgress()
+    }
+
+    fun resumeGame() {
+        if (page == Page.GAME && startedAt < 0L) startedAt = SystemClock.elapsedRealtime()
     }
 
     private fun handleGameKey(keyCode: Int): Boolean {
@@ -688,7 +755,9 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         statusMessage = null
         if (entries.all { it != 0 }) {
             if (current.isValidCompletion(entries)) {
-                elapsedSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000L
+                elapsedSeconds = currentElapsedMillis() / 1000L
+                startedAt = -1L
+                progress.clear(current.size, current.difficulty)
                 newRecord = scores.record(current.size, current.difficulty, elapsedSeconds)
                 rewardFocus = 1
                 page = Page.REWARD
@@ -767,6 +836,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     }
 
     private fun showHome() {
+        pauseGame()
         puzzle = null
         entries = IntArray(0)
         candidateMasks = IntArray(0)
@@ -811,7 +881,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         }
         actionButton(canvas, 802f, 800f, 1076f, 920f, "最好成绩", homeFocus == 6, false)
         actionButton(canvas, 1092f, 800f, 1366f, 920f, "24 点", homeFocus == 7, false)
-        actionButton(canvas, 1382f, 800f, 1716f, 920f, "开始数独", homeFocus == 8, true)
+        actionButton(canvas, 1382f, 800f, 1716f, 920f, if (progress.hasSudoku(boardSize, difficulty)) "继续数独" else "开始数独", homeFocus == 8, true)
         if (exitOpen) drawExitDialog(canvas)
     }
 
@@ -821,7 +891,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         rounded(canvas, 390f, 300f, 1530f, 782f, 32f, panel)
         strokeRound(canvas, 390f, 300f, 1530f, 782f, 32f, panelLight, 4f)
         textCenter(canvas, "退出数独助手？", 960f, 430f, 52f, cream, true)
-        textCenter(canvas, "当前没有进行中的游戏，可以安全退出。", 960f, 510f, 30f, muted)
+        textCenter(canvas, "未完成进度已保存，下次可以继续。", 960f, 510f, 30f, muted)
         actionButton(canvas, 485f, 588f, 904f, 710f, "取消", !exitSelected, !exitSelected)
         actionButton(canvas, 936f, 588f, 1435f, 710f, "退出应用", exitSelected, exitSelected)
     }
@@ -915,7 +985,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         text(canvas, "完成度  $filled / ${entries.size}", 1165f, 885f, 27f, cream)
         rounded(canvas, 1165f, 910f, 1824f, 924f, 7f, panelLight)
         rounded(canvas, 1165f, 910f, 1165f + 659f * filled / entries.size, 924f, 7f, mint)
-        text(canvas, "返回键退出本局", 1165f, 975f, 25f, muted)
+        text(canvas, "返回首页自动保存进度", 1165f, 975f, 25f, muted)
         if (pickerOpen) drawPicker(canvas, current.size)
     }
 

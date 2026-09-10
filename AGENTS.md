@@ -1,10 +1,10 @@
 # 数独与 24 点（电视与触摸屏版）：Agent 协作指南
 
-> 最后更新：2026-09-08
+> 最后更新：2026-09-10
 
 ## 1. 系统概述
 
-本项目是面向 Android TV、小米电视、横屏 Android 手机、Android 平板及小学生家庭练习场景的离线数字游戏，包含数独与 24 点。业务边界包括题目生成、遥控器与触摸交互、数独计时与成绩、答案校验、24 点整数四则运算合并、重置及最后一步提示；不包含账号、联网、广告、云同步或中途续玩。
+本项目是面向 Android TV、小米电视、横屏 Android 手机、Android 平板及小学生家庭练习场景的离线数字游戏，包含数独与 24 点。业务边界包括题目生成、遥控器与触摸交互、数独计时与成绩、答案校验、24 点整数四则运算合并、重置、最后一步提示及两种玩法的本地中途续玩；不包含账号、联网、广告或云同步。
 
 技术栈为 Kotlin、Android 原生 `View`/`Canvas`、`SharedPreferences` 和 Gradle。界面刻意不使用 Compose：目标小米电视曾出现 Compose 首次焦点响应延迟，原生 View 是必须保留的性能约束。
 
@@ -15,7 +15,7 @@
 | `app/` | Android 应用模块与打包配置 | Release 开启 R8、资源压缩并使用本地调试签名 | [app/AGENTS.md](app/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/` | Activity、状态机、绘制、遥控器与触摸事件 | 遥控器进入 `handleKey`，触摸经等比坐标反算进入同一状态机 | [应用层指南](app/src/main/java/com/kanayama/sudokuassistant/AGENTS.md) |
 | `app/src/main/java/com/kanayama/sudokuassistant/model/` | 数独与 24 点的生成、校验和运算规则 | 数独至少有解；24 点使用 1–10 的四个数字并保证存在整数解 | [模型指南](app/src/main/java/com/kanayama/sudokuassistant/model/AGENTS.md) |
-| `app/src/main/java/com/kanayama/sudokuassistant/data/` | 本地成绩持久化 | 每个宫格与难度组合保留最快 10 次 | [数据指南](app/src/main/java/com/kanayama/sudokuassistant/data/AGENTS.md) |
+| `app/src/main/java/com/kanayama/sudokuassistant/data/` | 本地成绩与未完成进度持久化 | 每个宫格与难度组合保留最快 10 次及一局未完成数独；另存一局 24 点 | [数据指南](app/src/main/java/com/kanayama/sudokuassistant/data/AGENTS.md) |
 | `app/src/main/res/` | Manifest、主题、高清图标和 TV 横幅 | Android 资源目录禁止存放 Markdown，维护规则统一见应用模块文档 | [应用模块指南](app/AGENTS.md) |
 | `app/src/test/` | JVM 单元测试 | 覆盖数独生成/校验、24 点整数解与合并规则、视口映射 | [测试指南](app/src/test/AGENTS.md) |
 | `gradle/` | Gradle Wrapper | 固定 Gradle 8.9 | [构建工具指南](gradle/AGENTS.md) |
@@ -33,15 +33,15 @@
 - **生成一局数独**
   - 入口：`SudokuGameView.startGame`
   - 核心逻辑：`SudokuGenerator.generate` → `generateSolution` → `isValidSolution` → `hasSolution`
-  - 副作用：启动单调时钟计时；不持久化未完成棋局
+  - 副作用：优先恢复同宫格与难度的存档，无存档才生成；计时仅累计游戏前台时间
 - **生成一局 24 点**
   - 入口：`SudokuGameView.startTwentyFourGame`
   - 核心逻辑：`TwentyFourGenerator.generate` → `findSolution` → 整数四则运算回溯
-  - 副作用：只创建内存中的 `TwentyFourPuzzle` 与 `TwentyFourRound`，不写磁盘
+  - 副作用：首页经 `resumeTwentyFourGame` 恢复原题、合并历史、选择与焦点；无存档或主动换题时才生成
 - **进行 24 点运算**
   - 入口：`SudokuGameView.handleTwentyFourKey`、`handleTwentyFourTap`
   - 核心逻辑：`selectTwentyFourNumber` → `selectTwentyFourOperation` → `TwentyFourRound.combine`
-  - 副作用：结果写入第二个数字的位置，第一个数字在当前局内消失
+  - 副作用：结果写入第二个数字的位置，第一个数字在当前局内消失；仍可继续时结果自动成为选中数字，点击其他数字可切换
 - **重置或更换 24 点题目**
   - 入口：24 点页面“重置”“换一题”按钮
   - 核心逻辑：`SudokuGameView.resetTwentyFourGame`、`startTwentyFourGame`
@@ -61,7 +61,7 @@
 - **空格预选数字**
   - 入口：游戏中空格按菜单键
   - 核心逻辑：`SudokuGameView.openCandidatePicker` → `togglePickerCandidate`
-  - 副作用：每格最多保留 4 个仅存内存的预选；预选不计完成度、不触发校验，正式填数后自动清除
+  - 副作用：每格最多保留 4 个随棋局保存的预选；预选不计完成度、不触发校验，正式填数后自动清除
 - **清除填写数字**
   - 入口：普通数字面板底部“清除”；触摸点按或遥控器从数字最底行按下再确定
   - 核心逻辑：`handlePickerTap` / `handleGameKey` → `enterValue(0)`
@@ -77,11 +77,16 @@
 - **首页退出应用**
   - 入口：`SudokuGameView.handleHomeKey`
   - 核心逻辑：`exitOpen` / `exitSelected` 状态 → `MainActivity.finishAffinity`
-  - 副作用：结束当前 Activity 任务，不清除成绩
+  - 副作用：结束当前 Activity 任务，保留成绩及未完成进度
 - **电视部署**
   - 入口：`:app:assembleRelease`
   - 核心逻辑：R8/资源压缩 → `adb install -r`
   - 副作用：覆盖安装会终止当前游戏；真机部署后执行 `cmd package compile -m speed -f`
+
+- **保存与恢复未完成游戏**
+  - 入口：`showHome`、`MainActivity.onPause/onResume`、`startGame`、`resumeTwentyFourGame`
+  - 核心逻辑：`saveProgress` / `pauseGame` → `ProgressRepository` → `SudokuProgress` / `TwentyFourProgress`
+  - 副作用：按键和触摸操作后异步保存；数独保存题面、填写、已保存预选、格子位置和用时；24 点重放合法合并历史并恢复选择、焦点、提示。错误终局可续玩或重置，成功终局不恢复。
 
 ## 4. 全局设计约束
 
@@ -95,8 +100,8 @@
 - 24 点提示：菜单键显示原题正确解法的最后一步，仅显示两个整数和运算符，不展示完整解法或 `= 24`；允许 `1 × 24`，菜单键不再重置。
 - 24 点合并：操作顺序固定为第一个数字、运算符、第二个数字；`TwentyFourRound.combine` 必须清空第一个位置，并把结果写入第二个位置。重置只恢复当前题，换题才重新生成数字。
 - 校验：填写过程不即时判错；仅在最后一个空格填满后统一校验并自动提交。不得逐格对比生成答案，多解题中任何满足原始题面及行、列、宫规则的完整答案都必须判对。
-- 计时：以 `SystemClock.elapsedRealtime()` 计算真实用时，刷新任务只负责重绘，不能用累计 tick 代替真实时钟。
-- 存储：只保存每个 `BoardSize × Difficulty` 的数独最快 10 次秒数；24 点与未完成棋局均不持久化。
+- 计时：以 `SystemClock.elapsedRealtime()` 计算真实用时，刷新任务只负责重绘，不能用累计 tick 代替真实时钟；返回首页和 Activity 暂停时保存累计毫秒并停止计时，恢复后接续。
+- 存储：成绩保留每个 `BoardSize × Difficulty` 最快 10 次秒数；`sudoku_progress` 单独保存各组合的一局未完成数独和一局未完成 24 点，通关删除对应进度。
 - 发布：电视安装使用 Release APK 和覆盖安装；禁止为部署执行卸载或清除应用数据。
 - 依赖：应用运行时不得增加网络、账号、音频或广告依赖。
 

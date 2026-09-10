@@ -1,6 +1,6 @@
 # Android 应用模块指南
 
-> 最后更新：2026-09-08
+> 最后更新：2026-09-10
 > 位置：`app/`
 
 ## 1. 概述
@@ -9,7 +9,7 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.5.0 (10)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.6.0 (11)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
@@ -53,3 +53,7 @@
 - `src/main/res/values/themes.xml`：API 24+ 基础主题；`values-v31/themes.xml` 增加系统启动画面。
 - Android `res/` 及其子目录只能包含合法资源文件，禁止在其中放置 `AGENTS.md` 或其他任意扩展名文件。
 - 主图标使用 `nodpi` 高清资源，避免电视桌面选择低分辨率 mipmap 后再次放大。
+
+两种玩法通过 `ProgressRepository` 保存未完成进度；`MainActivity.onPause/onResume` 管理数独暂停计时，返回首页及重新进入不换题。24 点合并后自动选择结果，支持点击其他数字切换。详见应用交互及 data/model 指南。
+
+JVM 测试通过 Robolectric 4.13（仅 testImplementation）覆盖真实 View 的遥控器/触摸与 SharedPreferences 续玩流程；`testOptions.unitTests.isIncludeAndroidResources` 为其启用资源，不增加 APK 运行依赖。

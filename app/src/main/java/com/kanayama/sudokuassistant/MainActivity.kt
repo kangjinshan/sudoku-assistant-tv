@@ -21,6 +21,16 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onPause() {
+        gameView.pauseGame()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        gameView.resumeGame()
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && gameView.handleKey(event.keyCode)) return true
         return super.dispatchKeyEvent(event)

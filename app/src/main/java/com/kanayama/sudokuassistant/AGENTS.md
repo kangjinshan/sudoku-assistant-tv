@@ -1,6 +1,6 @@
 # 应用交互模块开发指南
 
-> 最后更新：2026-09-08
+> 最后更新：2026-09-10
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/`
 
 ## 1. 模块概述
@@ -11,38 +11,39 @@
 
 | 文件/目录 | 职责 | 关键类 / 方法 |
 |---|---|---|
-| `MainActivity.kt` | 创建唯一游戏 View，最早接收系统按键和系统返回 | `MainActivity.onCreate`、`dispatchKeyEvent`、`onBackPressed` |
+| `MainActivity.kt` | 创建唯一游戏 View，最早接收系统按键和系统返回 | `MainActivity.onCreate`、`dispatchKeyEvent`、`onBackPressed`、`onPause/onResume` |
 | `SudokuGameView.kt` | 数独与 24 点页面状态、Canvas 绘制、遥控器与触摸路由、计时和通关编排 | `SudokuGameView`、`handleKey`、`onTouchEvent`、`startGame`、`startTwentyFourGame`、`selectTwentyFourNumber` |
 | `ViewportTransform.kt` | 将手机、平板和电视视图坐标等比映射到设计坐标 | `ViewportTransform.fit`、`toDesignPoint` |
 | `model/` | 数独与 24 点的规格、生成、求解和运算状态 | `BoardSize`、`Difficulty`、`SudokuGenerator`、`TwentyFourGenerator`、`TwentyFourRound` |
-| `data/` | 最好成绩存储 | `ScoreRepository` |
+| `data/` | 最好成绩与未完成进度存储 | `ScoreRepository`、`ProgressRepository` |
 | `Page` | 首页、数独、24 点、奖励、成绩五态枚举 | `HOME`、`GAME`、`TWENTY_FOUR`、`REWARD`、`SCORES` |
 
 ## 3. 核心业务流程
 
 - **首键响应**：Android `KeyEvent` → `MainActivity.dispatchKeyEvent` → `SudokuGameView.handleKey` → 对应页面 handler → `invalidate`。
 - **触摸输入**：Android `MotionEvent` → `GestureDetector` → `ViewportTransform.toDesignPoint` → 页面 tap/long-press handler → 与遥控器共用状态变更方法。
-- **开始游戏**：`handleHomeKey` → `activateHome` → `startGame` → `SudokuGenerator.generate` → 初始化题盘与 `startedAt`。
+- **开始游戏**：`handleHomeKey` → `activateHome` → `startGame` → 优先读取对应宫格与难度的 `SudokuProgress`，无存档才生成 → 恢复题盘、预选、位置与累计用时。
 - **填写数字**：`handleGameKey` → 确定键打开普通 picker → 按 `BoardSize.defaultPickerValue` 初始化焦点（四宫/六宫为 2，九宫为 5）→ 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
 - **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **触摸填数**：点按可填写格打开普通 picker，点按数字立即填入；长按空格打开预选 picker，点按数字切换草稿，通过“保存预选”提交。
 - **清除数字**：普通 picker 底部提供“清除”，绘制和触摸共用 `PickerLayout.clearButton`；遥控器从数字最底行按下设置 `pickerClearFocused`，按上恢复原数字焦点。点按清除或聚焦后确定均关闭面板并调用 `enterValue(0)`，清空当前可填写格及预选、重置错误提示，不触发自动提交，保持计时和棋盘焦点。每次打开普通或预选 picker 都重置清除焦点。
-- **开始 24 点**：首页 `homeFocus == 7` → `startTwentyFourGame` → `TwentyFourGenerator.generate` → 创建 `TwentyFourRound` → `Page.TWENTY_FOUR`。
+- **开始 24 点**：首页 `homeFocus == 7` → `resumeTwentyFourGame` → 恢复 `TwentyFourProgress` 的题目、合并历史、焦点、选择和提示；无存档才调用 `startTwentyFourGame`。
 - **24 点遥控器输入**：`handleTwentyFourKey` → `moveTwentyFourFocus` 在 2×2 数字、四个运算符和三个操作按钮间移动 → `activateTwentyFourFocus` 执行选择。
 - **24 点触摸输入**：`handleTwentyFourTap` 使用 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect` 命中同一组状态变更方法。
-- **24 点数字合并**：`selectTwentyFourNumber` 记录第一个数字 → `selectTwentyFourOperation` 记录运算符 → 再次 `selectTwentyFourNumber` 调用 `TwentyFourRound.combine`；第一个位置清空，结果留在第二个位置。
+- **24 点数字合并**：`selectTwentyFourNumber` 记录第一个数字 → `selectTwentyFourOperation` 记录运算符 → 再次 `selectTwentyFourNumber` 调用 `TwentyFourRound.combine`；第一个位置清空，结果留在第二个位置；未到终局时 `twentyFourSource` 与 `twentyFourFocus` 均指向结果，可直接选运算符或点其他数字切换。空数字卡不能获得触摸焦点。
 - **24 点重置与换题**：`resetTwentyFourGame` 恢复当前 `TwentyFourRound.initialNumbers`；`startTwentyFourGame` 重新生成题目。重置通过页面“重置”按钮执行。
 - **24 点提示**：遥控器菜单键 → `showTwentyFourHint` → 读取原题 `TwentyFourPuzzle.finalStep.expression`，提示区只显示最后一步两个整数和运算符（含 `1 × 24`），不显示完整表达式或等号结果；不修改局面、选择和焦点。继续操作会替换提示文案，再按菜单键可重看。
-- **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用 `SystemClock.elapsedRealtime` 重算秒数 → `invalidate`。
-- **通关记录**：`enterValue` 调用 `Puzzle.isValidCompletion` 校验题面约束及行、列、宫规则 → `ScoreRepository.record` → `Page.REWARD`；多解题的任一合法答案均可通关。
+- **计时刷新**：`onAttachedToWindow` → `ticker` 每 250ms 触发 → 用累计毫秒加本次 `SystemClock.elapsedRealtime` 差值重算秒数 → `invalidate`。
+- **通关记录**：`enterValue` 调用 `Puzzle.isValidCompletion` 校验题面约束及行、列、宫规则 → `ScoreRepository.record` → 删除该组合进度 → `Page.REWARD`；多解题的任一合法答案均可通关。
+- **暂停与保存**：`handleKey` / 触摸完成后 `saveProgress`；`showHome` 和 `MainActivity.onPause` 调用 `pauseGame`，累计计时并保存，`onResume` 通过 `resumeGame` 接续。首页“继续数独”根据所选组合是否有进度显示。
 - **退出应用**：首页返回键打开确认状态 → 左右切换 `exitSelected` → 确定后调用 Activity 提供的 `exitApp`。
 
 ## 4. 关键资源与副作用
 
 - 本地存储：`ScoreRepository` 使用名为 `sudoku_scores` 的 SharedPreferences。
 - 定时任务：`ticker` 在 View attach 时启动、detach 时移除；禁止产生多个重复 callback。
-- 进程状态：未完成棋局仅存在内存，覆盖安装、进程终止或重新启动不会恢复。
-- 24 点状态：`TwentyFourPuzzle`、`TwentyFourRound`、已选数字与运算符均只存在内存，不写入 `ScoreRepository`。
+- 进程状态：未完成数独保存到 `sudoku_progress`，包含已确认填写、预选、格子位置及累计毫秒；同宫格和难度恢复原题。数字面板草稿不自动确认。
+- 24 点状态：`TwentyFourProgress` 保存原题和最多三步合法合并历史、焦点、已选数字、运算符与提示；恢复后仍可重置原题。失败终局保留，成功时删除进度。
 - 外部依赖：无网络、数据库、消息队列或后台服务。
 
 ## 5. 常见修改场景与切入点

@@ -11,8 +11,8 @@ android {
         applicationId = "com.kanayama.sudokuassistant"
         minSdk = 24
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.5.0"
+        versionCode = 11
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -32,8 +32,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.13")
 }

@@ -58,9 +58,13 @@ data class TwentyFourMove(
     val result: Int? = null,
 )
 
+data class TwentyFourCalculation(val source: Int, val target: Int, val operation: ArithmeticOperation)
+
 class TwentyFourRound(initialNumbers: List<Int>) {
     val initialNumbers = initialNumbers.toList()
     private val currentValues = arrayOfNulls<Int>(4)
+    private val calculations = mutableListOf<TwentyFourCalculation>()
+    val history: List<TwentyFourCalculation> get() = calculations.toList()
 
     init {
         require(initialNumbers.size == 4)
@@ -78,6 +82,7 @@ class TwentyFourRound(initialNumbers: List<Int>) {
         get() = remainingCount == 1 && currentValues.singleOrNull { it != null } == 24
 
     fun reset() {
+        calculations.clear()
         initialNumbers.forEachIndexed { index, value -> currentValues[index] = value }
     }
 
@@ -91,6 +96,7 @@ class TwentyFourRound(initialNumbers: List<Int>) {
 
         currentValues[sourceIndex] = null
         currentValues[targetIndex] = result
+        calculations += TwentyFourCalculation(sourceIndex, targetIndex, operation)
         val status = when {
             remainingCount > 1 -> TwentyFourMoveStatus.APPLIED
             result == 24 -> TwentyFourMoveStatus.SOLVED
