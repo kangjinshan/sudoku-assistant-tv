@@ -1,6 +1,6 @@
 # 应用交互模块开发指南
 
-> 最后更新：2026-09-10
+> 最后更新：2026-09-11
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/`
 
 ## 1. 模块概述
@@ -22,12 +22,13 @@
 
 - **首键响应**：Android `KeyEvent` → `MainActivity.dispatchKeyEvent` → `SudokuGameView.handleKey` → 对应页面 handler → `invalidate`。
 - **触摸输入**：Android `MotionEvent` → `GestureDetector` → `ViewportTransform.toDesignPoint` → 页面 tap/long-press handler → 与遥控器共用状态变更方法。
+- **难度选择**：首页支持简单、中等、困难、专家四张卡片，`difficultyCardRect` 将 914 设计像素的可用宽度按枚举数等分（卡间距 20），绘制与点击使用同一矩形；成绩筛选也按 `Difficulty.entries` 生成。专家保留四宫 6、六宫 14、九宫 24 个已知数。
 - **开始游戏**：`handleHomeKey` → `activateHome` → `startGame` → 优先读取对应宫格与难度的 `SudokuProgress`，无存档才生成 → 恢复题盘、预选、位置与累计用时。
 - **填写数字**：`handleGameKey` → 确定键打开普通 picker → 按 `BoardSize.defaultPickerValue` 初始化焦点（四宫/六宫为 2，九宫为 5）→ 改变 `pickerSelection` → `enterValue` → 清除该格预选 → 必要时自动提交。
 - **预选数字**：空格按菜单键 → `openCandidatePicker` → 菜单键通过 `togglePickerCandidate` 切换草稿（最多 4 个）→ 确定键保存；返回键放弃本次草稿。
 - **触摸填数**：点按可填写格打开普通 picker，点按数字立即填入；长按空格打开预选 picker，点按数字切换草稿，通过“保存预选”提交。
 - **清除数字**：普通 picker 底部提供“清除”，绘制和触摸共用 `PickerLayout.clearButton`；遥控器从数字最底行按下设置 `pickerClearFocused`，按上恢复原数字焦点。点按清除或聚焦后确定均关闭面板并调用 `enterValue(0)`，清空当前可填写格及预选、重置错误提示，不触发自动提交，保持计时和棋盘焦点。每次打开普通或预选 picker 都重置清除焦点。
-- **开始 24 点**：首页 `homeFocus == 7` → `resumeTwentyFourGame` → 恢复 `TwentyFourProgress` 的题目、合并历史、焦点、选择和提示；无存档才调用 `startTwentyFourGame`。
+- **开始 24 点**：首页 `homeFocus == homeTwentyFourFocus`（8）→ `resumeTwentyFourGame` → 恢复 `TwentyFourProgress` 的题目、合并历史、焦点、选择和提示；无存档才调用 `startTwentyFourGame`。
 - **24 点遥控器输入**：`handleTwentyFourKey` → `moveTwentyFourFocus` 在 2×2 数字、四个运算符和三个操作按钮间移动 → `activateTwentyFourFocus` 执行选择。
 - **24 点触摸输入**：`handleTwentyFourTap` 使用 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect` 命中同一组状态变更方法。
 - **24 点数字合并**：`selectTwentyFourNumber` 记录第一个数字 → `selectTwentyFourOperation` 记录运算符 → 再次 `selectTwentyFourNumber` 调用 `TwentyFourRound.combine`；第一个位置清空，结果留在第二个位置；未到终局时 `twentyFourSource` 与 `twentyFourFocus` 均指向结果，可直接选运算符或点其他数字切换。空数字卡不能获得触摸焦点。
@@ -48,7 +49,7 @@
 
 ## 5. 常见修改场景与切入点
 
-- 调整首页焦点路径：修改 `handleHomeKey`，并同步检查 `drawHome` 与 `handleHomeTap` 中的 `homeFocus` 索引；当前 6/7/8 分别为成绩、24 点、开始数独。
+- 调整首页焦点路径：修改 `handleHomeKey`，同步检查绘制与触摸；当前 0–2 为宫格、3–6 为难度，7/8/9 分别为 `homeScoresFocus`、`homeTwentyFourFocus`、`homeStartFocus`。上下按空间就近映射：四宫↔简单、六宫↔中等、九宫↔专家；困难向上到六宫、向下到 24 点。左右不得跨行。成绩页 0–6 为筛选、7 为 `scoreBackFocus`，从返回按钮按上恢复当前难度的筛选焦点。
 - 调整数独盘尺寸：修改 `drawGame` 的 `boardPixels`；同时验证 4/6/9 三种字号和粗分隔线。
 - 调整设计画布或宽高比适配：同步修改 `ViewportTransform` 常量、Canvas 变换、触摸反算测试，禁止横纵轴独立缩放。
 - 调整数字浮层：修改 `drawPicker` 的 `panelWidth`、`key` 和右边界，确保左边界大于棋盘右边界 1080。

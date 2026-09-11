@@ -13,7 +13,7 @@ enum class BoardSize(
 }
 
 enum class Difficulty(val label: String) {
-    EASY("简单"), MEDIUM("中等"), HARD("困难")
+    EASY("简单"), MEDIUM("中等"), HARD("困难"), EXPERT("专家")
 }
 
 data class Puzzle(
@@ -37,9 +37,9 @@ data class Puzzle(
 
 object SudokuGenerator {
     private val clueCounts = mapOf(
-        BoardSize.FOUR to mapOf(Difficulty.EASY to 12, Difficulty.MEDIUM to 10, Difficulty.HARD to 8),
-        BoardSize.SIX to mapOf(Difficulty.EASY to 27, Difficulty.MEDIUM to 22, Difficulty.HARD to 18),
-        BoardSize.NINE to mapOf(Difficulty.EASY to 54, Difficulty.MEDIUM to 43, Difficulty.HARD to 32),
+        BoardSize.FOUR to mapOf(Difficulty.EASY to 12, Difficulty.MEDIUM to 10, Difficulty.HARD to 8, Difficulty.EXPERT to 6),
+        BoardSize.SIX to mapOf(Difficulty.EASY to 27, Difficulty.MEDIUM to 22, Difficulty.HARD to 18, Difficulty.EXPERT to 14),
+        BoardSize.NINE to mapOf(Difficulty.EASY to 54, Difficulty.MEDIUM to 43, Difficulty.HARD to 32, Difficulty.EXPERT to 24),
     )
 
     fun clueCount(size: BoardSize, difficulty: Difficulty): Int =
@@ -148,16 +148,24 @@ object SudokuGenerator {
         val board = givens.copyOf()
         val side = size.side
         fun solve(): Boolean {
-            val empty = board.indexOfFirst { it == 0 }
-            if (empty < 0) return isValidSolution(board, size)
-            val row = empty / side
-            val column = empty % side
-            for (value in 1..side) {
-                if (canPlace(board, size, row, column, value)) {
-                    board[empty] = value
-                    if (solve()) return true
-                    board[empty] = 0
+            var empty = -1
+            var candidates = emptyList<Int>()
+            // Sparse expert boards need the most constrained cell first to avoid long opening stalls.
+            for (index in board.indices) {
+                if (board[index] != 0) continue
+                val available = (1..side).filter { canPlace(board, size, index / side, index % side, it) }
+                if (available.isEmpty()) return false
+                if (empty < 0 || available.size < candidates.size) {
+                    empty = index
+                    candidates = available
+                    if (candidates.size == 1) break
                 }
+            }
+            if (empty < 0) return isValidSolution(board, size)
+            for (value in candidates) {
+                board[empty] = value
+                if (solve()) return true
+                board[empty] = 0
             }
             return false
         }

@@ -1,6 +1,7 @@
 package com.kanayama.sudokuassistant.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,13 +16,25 @@ class SudokuGeneratorTest {
     }
 
     @Test
+    fun expertHasFewerCluesThanHardForEveryBoardSize() {
+        val expectedClues = mapOf(BoardSize.FOUR to 6, BoardSize.SIX to 14, BoardSize.NINE to 24)
+        expectedClues.forEach { (size, count) ->
+            assertEquals(count, SudokuGenerator.clueCount(size, Difficulty.EXPERT))
+            val counts = Difficulty.entries.map { SudokuGenerator.clueCount(size, it) }
+            assertTrue(counts.zipWithNext().all { (easier, harder) -> easier > harder })
+        }
+    }
+
+    @Test
     fun everySizeAndDifficultyProducesValidSolvablePuzzle() {
         BoardSize.entries.forEach { size ->
             Difficulty.entries.forEach { difficulty ->
-                repeat(10) { seed ->
+                repeat(if (difficulty == Difficulty.EXPERT) 100 else 10) { seed ->
                     val puzzle = SudokuGenerator.generate(size, difficulty, Random(seed))
                     assertTrue("${size.name} ${difficulty.name}", SudokuGenerator.isValidSolution(puzzle.solution, size))
+                    val originalGivens = puzzle.givens.copyOf()
                     assertTrue("${size.name} ${difficulty.name} should be solvable", SudokuGenerator.hasSolution(puzzle.givens, size))
+                    assertArrayEquals(originalGivens, puzzle.givens)
                     assertEquals(SudokuGenerator.clueCount(size, difficulty), puzzle.givens.count { it != 0 })
                     puzzle.givens.forEachIndexed { index, value ->
                         if (value != 0) assertEquals(puzzle.solution[index], value)
@@ -29,6 +42,19 @@ class SudokuGeneratorTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun solverRejectsUnsolvablePartialBoardWithoutChangingGivens() {
+        val givens = intArrayOf(
+            1, 2, 3, 0,
+            3, 4, 1, 0,
+            2, 1, 4, 0,
+            4, 3, 0, 2,
+        )
+        val original = givens.copyOf()
+        assertFalse(SudokuGenerator.hasSolution(givens, BoardSize.FOUR))
+        assertArrayEquals(original, givens)
     }
 
     @Test

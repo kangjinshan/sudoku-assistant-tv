@@ -1,6 +1,6 @@
 # 数独与 24 点模型模块开发指南
 
-> 最后更新：2026-09-10
+> 最后更新：2026-09-11
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/model/`
 
 ## 1. 模块概述
@@ -19,7 +19,7 @@
 ## 3. 核心业务流程
 
 - **生成完整盘**：`generate` → `generateSolution` → 行带/列栈/数字随机置换 → `isValidSolution`。
-- **生成题面**：按 `clueCount` 随机清零 → `hasSolution` 回溯验证 → 创建 `Puzzle`。
+- **生成题面**：按 `clueCount` 随机清零 → `hasSolution` 在题面副本上优先选择候选数最少的空格回溯验证 → 创建 `Puzzle`。该搜索顺序避免专家稀疏题面按行扫描时的长时间回溯；不得修改调用方题面。
 - **最终校验**：`Puzzle.isValidCompletion` 先确认原始已知数未变，再以 `isValidSolution` 验证每行、每列、每宫；不与 `Puzzle.solution` 逐格比较。
 - **冲突定位**：非法完整盘由 `conflictingCells` 找出行、列或宫内的重复数字，供 UI 标出需要检查的玩家填写格。
 - **生成 24 点题目**：`TwentyFourGenerator.generate` 随机取 4 个 1–10 数字 → `findSolutionTerm` 递归组合两项 → 仅保留 `ArithmeticOperation.apply` 接受的整数结果 → 找到 24 后返回完整表达式及同一解法的最后一步；`findSolution` 返回完整表达式，`findFinalStep` 返回最后一步两个整数和运算符。
@@ -30,14 +30,14 @@
 
 - 无外部存储、网络或异步副作用。
 - `Puzzle.solution` 是生成阶段保留的参考解，不得用于最终通关判定；`solution` 和 `givens` 均为可变数组，调用方不得修改。
-- 已知数：四宫 12/10/8，六宫 27/22/18，九宫 54/43/32。
+- 难度顺序为简单、中等、困难、专家；已知数：四宫 12/10/8/6，六宫 27/22/18/14，九宫 54/43/32/24。`Difficulty.EXPERT` 追加在末尾，已有枚举名称不得更改，保证原有存档与成绩键兼容。
 - 数字面板默认值：四宫 2、六宫 2、九宫 5；UI 的普通面板和空白预选面板统一读取 `BoardSize.defaultPickerValue`。
 - 24 点初始数字限定为 1–10；中间结果可为 0 或负数。`DIVIDE` 在除数为 0 或不能整除时返回 `null`，UI 必须保留原局面并提示用户。
 - `TwentyFourPuzzle.solutionExpression` 保存完整参考解，不直接显示给玩家；`finalStep` 保存同一解法的最终两个整数和运算符，供菜单键提示。`TwentyFourFinalStep.expression` 不含 `= 24`，负数加括号。加法和乘法按数值升序展示操作数，减法与除法保持顺序；`1 × 24` 等合法最后一步不筛除。24 点未完成状态由 `TwentyFourProgress` 编码并重放 `TwentyFourRound.history` 恢复；成功状态不续玩，错误终局可恢复并重置。
 
 ## 5. 常见修改场景与切入点
 
-- 改难度数量：修改 `SudokuGenerator.clueCounts`，同步 README 和测试。
+- 改难度档位或已知数：修改 `Difficulty`、`SudokuGenerator.clueCounts`，同步首页布局/焦点、成绩筛选、README 和测试。新增档位必须有更少的已知数，并验证可解性及开局耗时。
 - 改六宫分宫：修改 `BoardSize.SIX`，同步校验、绘制和说明文档。
 - 要求唯一解：扩展 `hasSolution` 为计数求解器，生成阶段在移除数字后限制解数为 1。
 - 新增宫格：更新 `BoardSize`、生成模式、UI picker 列数和全部参数化测试。

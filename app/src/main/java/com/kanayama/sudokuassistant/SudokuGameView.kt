@@ -58,12 +58,17 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val scores = ScoreRepository(context)
     private val progress = ProgressRepository(context)
+    private val difficultyFocusStart = BoardSize.entries.size
+    private val homeScoresFocus = difficultyFocusStart + Difficulty.entries.size
+    private val homeTwentyFourFocus = homeScoresFocus + 1
+    private val homeStartFocus = homeScoresFocus + 2
+    private val scoreBackFocus = homeScoresFocus
 
     private var page = Page.HOME
     private var boardSize = BoardSize.NINE
     private var difficulty = Difficulty.EASY
-    private var homeFocus = 8
-    private var scoreFocus = 6
+    private var homeFocus = homeStartFocus
+    private var scoreFocus = scoreBackFocus
     private var rewardFocus = 1
     private var exitOpen = false
     private var exitSelected = false
@@ -222,26 +227,25 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             }
         }
         Difficulty.entries.forEachIndexed { index, item ->
-            val left = 802f + index * 314f
-            if (contains(x, y, left, 604f, left + 286f, 790f)) {
-                homeFocus = index + 3
+            if (difficultyCardRect(index).contains(x, y)) {
+                homeFocus = index + difficultyFocusStart
                 difficulty = item
                 return true
             }
         }
         return when {
             contains(x, y, 802f, 800f, 1076f, 920f) -> {
-                homeFocus = 6
+                homeFocus = homeScoresFocus
                 activateHome()
                 true
             }
             contains(x, y, 1092f, 800f, 1366f, 920f) -> {
-                homeFocus = 7
+                homeFocus = homeTwentyFourFocus
                 activateHome()
                 true
             }
             contains(x, y, 1382f, 800f, 1716f, 920f) -> {
-                homeFocus = 8
+                homeFocus = homeStartFocus
                 activateHome()
                 true
             }
@@ -536,17 +540,17 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     }
 
     private fun handleScoresTap(x: Float, y: Float): Boolean {
-        repeat(6) { index ->
+        repeat(scoreBackFocus) { index ->
             val left = 64f + index * 132f
             if (contains(x, y, left, 190f, left + 116f, 246f)) {
                 scoreFocus = index
-                if (index < 3) boardSize = BoardSize.entries[index]
-                else difficulty = Difficulty.entries[index - 3]
+                if (index < difficultyFocusStart) boardSize = BoardSize.entries[index]
+                else difficulty = Difficulty.entries[index - difficultyFocusStart]
                 return true
             }
         }
         if (contains(x, y, 1635f, 65f, 1855f, 130f)) {
-            scoreFocus = 6
+            scoreFocus = scoreBackFocus
             showHome()
             return true
         }
@@ -581,26 +585,24 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
             return true
         }
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> homeFocus = when (homeFocus) {
-                1, 2, 4, 5, 7, 8 -> homeFocus - 1
-                else -> homeFocus
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> homeFocus = when (homeFocus) {
-                0, 1, 3, 4, 6, 7 -> homeFocus + 1
-                else -> homeFocus
-            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> if (homeFocus !in listOf(0, difficultyFocusStart, homeScoresFocus)) homeFocus--
+            KeyEvent.KEYCODE_DPAD_RIGHT -> if (homeFocus !in listOf(difficultyFocusStart - 1, homeScoresFocus - 1, homeStartFocus)) homeFocus++
             KeyEvent.KEYCODE_DPAD_UP -> homeFocus = when (homeFocus) {
-                in 3..5 -> homeFocus - 3
-                6 -> 3
-                7 -> 4
-                8 -> 5
+                3 -> 0
+                4, 5 -> 1
+                6 -> 2
+                homeScoresFocus -> difficultyFocusStart
+                homeTwentyFourFocus -> difficultyFocusStart + 1
+                homeStartFocus -> homeScoresFocus - 1
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> homeFocus = when (homeFocus) {
-                in 0..2 -> homeFocus + 3
-                3 -> 6
-                4 -> 7
-                5 -> 8
+                0 -> difficultyFocusStart
+                1 -> difficultyFocusStart + 1
+                2 -> homeScoresFocus - 1
+                3 -> homeScoresFocus
+                4, 5 -> homeTwentyFourFocus
+                6 -> homeStartFocus
                 else -> homeFocus
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> activateHome()
@@ -612,15 +614,11 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private fun activateHome() {
         when (homeFocus) {
-            0 -> boardSize = BoardSize.FOUR
-            1 -> boardSize = BoardSize.SIX
-            2 -> boardSize = BoardSize.NINE
-            3 -> difficulty = Difficulty.EASY
-            4 -> difficulty = Difficulty.MEDIUM
-            5 -> difficulty = Difficulty.HARD
-            6 -> { scoreFocus = 6; page = Page.SCORES }
-            7 -> resumeTwentyFourGame()
-            8 -> startGame()
+            in 0 until difficultyFocusStart -> boardSize = BoardSize.entries[homeFocus]
+            in difficultyFocusStart until homeScoresFocus -> difficulty = Difficulty.entries[homeFocus - difficultyFocusStart]
+            homeScoresFocus -> { scoreFocus = scoreBackFocus; page = Page.SCORES }
+            homeTwentyFourFocus -> resumeTwentyFourGame()
+            homeStartFocus -> startGame()
         }
     }
 
@@ -816,18 +814,14 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
 
     private fun handleScoresKey(keyCode: Int): Boolean {
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> if (scoreFocus in 1..5) scoreFocus--
-            KeyEvent.KEYCODE_DPAD_RIGHT -> if (scoreFocus in 0..4) scoreFocus++
-            KeyEvent.KEYCODE_DPAD_UP -> if (scoreFocus == 6) scoreFocus = 4
-            KeyEvent.KEYCODE_DPAD_DOWN -> if (scoreFocus in 0..5) scoreFocus = 6
+            KeyEvent.KEYCODE_DPAD_LEFT -> if (scoreFocus in 1 until scoreBackFocus) scoreFocus--
+            KeyEvent.KEYCODE_DPAD_RIGHT -> if (scoreFocus in 0 until scoreBackFocus - 1) scoreFocus++
+            KeyEvent.KEYCODE_DPAD_UP -> if (scoreFocus == scoreBackFocus) scoreFocus = difficultyFocusStart + difficulty.ordinal
+            KeyEvent.KEYCODE_DPAD_DOWN -> if (scoreFocus in 0 until scoreBackFocus) scoreFocus = scoreBackFocus
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> when (scoreFocus) {
-                0 -> boardSize = BoardSize.FOUR
-                1 -> boardSize = BoardSize.SIX
-                2 -> boardSize = BoardSize.NINE
-                3 -> difficulty = Difficulty.EASY
-                4 -> difficulty = Difficulty.MEDIUM
-                5 -> difficulty = Difficulty.HARD
-                6 -> showHome()
+                in 0 until difficultyFocusStart -> boardSize = BoardSize.entries[scoreFocus]
+                in difficultyFocusStart until scoreBackFocus -> difficulty = Difficulty.entries[scoreFocus - difficultyFocusStart]
+                scoreBackFocus -> showHome()
             }
             KeyEvent.KEYCODE_BACK -> showHome()
             else -> return false
@@ -846,7 +840,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         twentyFourSource = null
         twentyFourOperation = null
         exitOpen = false
-        homeFocus = 8
+        homeFocus = homeStartFocus
         page = Page.HOME
     }
 
@@ -856,6 +850,13 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         canvas.drawCircle(110f, 25f, 390f, paint)
         paint.color = Color.argb(15, 86, 214, 201)
         canvas.drawCircle(1760f, 970f, 500f, paint)
+    }
+
+    private fun difficultyCardRect(index: Int): RectF {
+        val gap = 20f
+        val width = (914f - gap * (Difficulty.entries.size - 1)) / Difficulty.entries.size
+        val left = 802f + index * (width + gap)
+        return RectF(left, 604f, left + width, 790f)
     }
 
     private fun drawHome(canvas: Canvas) {
@@ -876,12 +877,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         text(canvas, "选择难度", 803f, 557f, 46f, cream, true)
         text(canvas, "由题面已知数字数量决定", 1715f, 558f, 30f, muted, align = Paint.Align.RIGHT)
         Difficulty.entries.forEachIndexed { index, item ->
-            val left = 802f + index * 314f
-            optionCard(canvas, left, 604f, left + 286f, 790f, item.label, "已知 ${SudokuGenerator.clueCount(boardSize, item)} 格", difficulty == item, homeFocus == index + 3)
+            val rect = difficultyCardRect(index)
+            optionCard(canvas, rect.left, rect.top, rect.right, rect.bottom, item.label, "已知 ${SudokuGenerator.clueCount(boardSize, item)} 格", difficulty == item, homeFocus == index + difficultyFocusStart)
         }
-        actionButton(canvas, 802f, 800f, 1076f, 920f, "最好成绩", homeFocus == 6, false)
-        actionButton(canvas, 1092f, 800f, 1366f, 920f, "24 点", homeFocus == 7, false)
-        actionButton(canvas, 1382f, 800f, 1716f, 920f, if (progress.hasSudoku(boardSize, difficulty)) "继续数独" else "开始数独", homeFocus == 8, true)
+        actionButton(canvas, 802f, 800f, 1076f, 920f, "最好成绩", homeFocus == homeScoresFocus, false)
+        actionButton(canvas, 1092f, 800f, 1366f, 920f, "24 点", homeFocus == homeTwentyFourFocus, false)
+        actionButton(canvas, 1382f, 800f, 1716f, 920f, if (progress.hasSudoku(boardSize, difficulty)) "继续数独" else "开始数独", homeFocus == homeStartFocus, true)
         if (exitOpen) drawExitDialog(canvas)
     }
 
@@ -1150,12 +1151,12 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun drawScores(canvas: Canvas) {
         text(canvas, "最好成绩", 64f, 110f, 54f, cream, true)
         text(canvas, "每个组合保留最快的 10 次", 64f, 150f, 25f, muted)
-        val labels = listOf("四宫", "六宫", "九宫", "简单", "中等", "困难")
+        val labels = BoardSize.entries.map { it.label } + Difficulty.entries.map { it.label }
         labels.forEachIndexed { index, label ->
             val x = 64f + index * 132f
-            actionButton(canvas, x, 190f, x + 116f, 246f, label, scoreFocus == index, index == boardSize.ordinal || index - 3 == difficulty.ordinal)
+            actionButton(canvas, x, 190f, x + 116f, 246f, label, scoreFocus == index, index == boardSize.ordinal || index - difficultyFocusStart == difficulty.ordinal)
         }
-        actionButton(canvas, 1635f, 65f, 1855f, 130f, "返回选择", scoreFocus == 6, true)
+        actionButton(canvas, 1635f, 65f, 1855f, 130f, "返回选择", scoreFocus == scoreBackFocus, true)
         val values = scores.scores(boardSize, difficulty)
         if (values.isEmpty()) {
             textCenter(canvas, "还没有通关记录", 960f, 540f, 42f, cream, true)
