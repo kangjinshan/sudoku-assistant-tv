@@ -1,11 +1,11 @@
 # 数独与 24 点模型模块开发指南
 
-> 最后更新：2026-09-11
+> 最后更新：2026-09-25
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/model/`
 
 ## 1. 模块概述
 
-该模块提供两套离线数字游戏规则：生成适合四宫、六宫和九宫练习的有效数独，并生成由四个 1–10 数字组成、存在整数四则运算解的 24 点题目。数独不强制唯一解；24 点每一步除法都必须整除。
+该模块提供两套离线数字游戏规则：生成适合四宫、六宫和九宫练习的有效数独，并生成由四个 1–10 数字组成、至少存在一条非负整数四则运算解的 24 点题目。数独不强制唯一解；24 点参考解不得经过负数，所有除法必须整除。
 
 ## 2. 核心代码结构
 
@@ -22,7 +22,7 @@
 - **生成题面**：按 `clueCount` 随机清零 → `hasSolution` 在题面副本上优先选择候选数最少的空格回溯验证 → 创建 `Puzzle`。该搜索顺序避免专家稀疏题面按行扫描时的长时间回溯；不得修改调用方题面。
 - **最终校验**：`Puzzle.isValidCompletion` 先确认原始已知数未变，再以 `isValidSolution` 验证每行、每列、每宫；不与 `Puzzle.solution` 逐格比较。
 - **冲突定位**：非法完整盘由 `conflictingCells` 找出行、列或宫内的重复数字，供 UI 标出需要检查的玩家填写格。
-- **生成 24 点题目**：`TwentyFourGenerator.generate` 随机取 4 个 1–10 数字 → `findSolutionTerm` 递归组合两项 → 仅保留 `ArithmeticOperation.apply` 接受的整数结果 → 找到 24 后返回完整表达式及同一解法的最后一步；`findSolution` 返回完整表达式，`findFinalStep` 返回最后一步两个整数和运算符。
+- **生成 24 点题目**：`TwentyFourGenerator.generate` 随机取 4 个 1–10 数字 → `findSolutionTerm` 递归组合两项 → 仅保留 `ArithmeticOperation.apply` 接受的非负整数结果 → 找到 24 后返回完整表达式及同一解法的最后一步；`findSolution` 返回完整表达式，`findFinalStep` 返回最后一步两个整数和运算符。
 - **执行 24 点运算**：`TwentyFourRound.combine(sourceIndex, targetIndex, operation)` → 按顺序计算 `source operation target` → 清空 source → 把结果写入 target → 根据剩余数量返回 `APPLIED`、`SOLVED` 或 `NOT_TWENTY_FOUR`。
 - **重置 24 点题目**：`TwentyFourRound.reset` 清空合并历史并把四个位置恢复为不可变的 `initialNumbers`；不重新随机生成。
 
@@ -32,8 +32,8 @@
 - `Puzzle.solution` 是生成阶段保留的参考解，不得用于最终通关判定；`solution` 和 `givens` 均为可变数组，调用方不得修改。
 - 难度顺序为简单、中等、困难、专家；已知数：四宫 12/10/8/6，六宫 27/22/18/14，九宫 54/43/32/24。`Difficulty.EXPERT` 追加在末尾，已有枚举名称不得更改，保证原有存档与成绩键兼容。
 - 数字面板默认值：四宫 2、六宫 2、九宫 5；UI 的普通面板和空白预选面板统一读取 `BoardSize.defaultPickerValue`。
-- 24 点初始数字限定为 1–10；中间结果可为 0 或负数。`DIVIDE` 在除数为 0 或不能整除时返回 `null`，UI 必须保留原局面并提示用户。
-- `TwentyFourPuzzle.solutionExpression` 保存完整参考解，不直接显示给玩家；`finalStep` 保存同一解法的最终两个整数和运算符，供菜单键提示。`TwentyFourFinalStep.expression` 不含 `= 24`，负数加括号。加法和乘法按数值升序展示操作数，减法与除法保持顺序；`1 × 24` 等合法最后一步不筛除。24 点未完成状态由 `TwentyFourProgress` 编码并重放 `TwentyFourRound.history` 恢复；成功状态不续玩，错误终局可恢复并重置。
+- 24 点初始数字限定为 1–10。`ArithmeticOperation.apply` 允许玩家减出负数；`TwentyFourGenerator.combine` 在搜索参考解时额外舍弃负数结果，因此每道生成题至少有一条中间结果全为非负整数的解。`DIVIDE` 在除数为 0 或不能整除时返回 `null`。
+- `TwentyFourPuzzle.solutionExpression` 保存完整的非负整数参考解，不直接显示给玩家；`finalStep` 保存同一解法的最终两个非负整数和运算符，供菜单键提示。`TwentyFourFinalStep.expression` 不含 `= 24`，玩家局面出现负数时仍用括号格式化。加法和乘法按数值升序展示操作数，减法与除法保持顺序；`1 × 24` 等合法最后一步不筛除。24 点未完成状态由 `TwentyFourProgress` 编码并重放 `TwentyFourRound.history` 恢复；成功状态不续玩，错误终局可恢复并重置。
 
 ## 5. 常见修改场景与切入点
 
@@ -44,7 +44,7 @@
 - 改数字面板默认焦点：修改 `BoardSize.defaultPickerValue`，同步 README、UI 指南和模型测试。
 - 修复非法题：从 `isValidSolution`、`canPlace` 和 `hasSolution` 依次排查。
 - 修改 24 点数字范围或目标：同步修改 `TwentyFourPuzzle` 校验、`TwentyFourGenerator.generate/findSolution`、`TwentyFourRound.isSolved` 和测试，不能只改 UI 文案。
-- 修改运算规则：从 `ArithmeticOperation.apply` 入手，并回归求解器与 `TwentyFourRound.combine`；生成器和玩家操作必须使用完全相同的整除语义。
+- 修改运算规则：玩家可执行规则从 `ArithmeticOperation.apply` 与 `TwentyFourRound.combine` 入手；出题参考解的额外非负约束位于 `TwentyFourGenerator.combine`。除法整除语义必须在生成器和玩家操作间保持一致。
 - 修改数字合并方向：从 `TwentyFourRound.combine` 入手；当前业务约束是 source 消失、结果写入 target。
 
 ## 6. 维护与风险说明
@@ -56,3 +56,4 @@
 | 修改 pattern 后出现非法解 | 中 | 所有题不可用 | 运行全部 `SudokuGeneratorTest` |
 | 生成器与玩家运算规则不一致 | 中 | 题目理论可解但界面无法完成 | 两条路径统一调用 `ArithmeticOperation.apply`，运行 `TwentyFourGeneratorTest` |
 | 允许非整除除法 | 中 | 出现分数并破坏整数玩法 | `DIVIDE` 必须同时检查除数非零和余数为零 |
+| 生成参考解包含负数步骤 | 中 | 题目提示违背儿童心算约束 | `TwentyFourGenerator.combine` 必须过滤 `result < 0`，并独立解析生成表达式验证所有中间结果非负 |

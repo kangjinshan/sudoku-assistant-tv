@@ -10,7 +10,7 @@ import kotlin.random.Random
 
 class TwentyFourGeneratorTest {
     @Test
-    fun generatedPuzzlesUseFourNumbersFromOneToTenAndHaveIntegerSolution() {
+    fun generatedPuzzlesUseFourNumbersFromOneToTenAndHaveNonNegativeIntegerSolution() {
         repeat(100) { seed ->
             val puzzle = TwentyFourGenerator.generate(Random(seed))
 
@@ -44,7 +44,7 @@ class TwentyFourGeneratorTest {
     }
 
     // Independently evaluate the saved expression to verify every input is used and
-    // the hint is the actual root operation of a valid integer-only solution.
+    // the hint is the actual root operation of a valid non-negative integer solution.
     private fun assertSolutionMatchesHint(puzzle: TwentyFourPuzzle) {
         val tokens = Regex("[0-9]+|[()＋−×÷]").findAll(puzzle.solutionExpression).map { it.value }.toList()
         val leaves = mutableListOf<Int>()
@@ -59,7 +59,7 @@ class TwentyFourGeneratorTest {
             val right = evaluate()
             assertEquals(")", tokens[position++])
             lastStep = TwentyFourFinalStep(left, operation, right)
-            return when (operation) {
+            val result = when (operation) {
                 ArithmeticOperation.ADD -> left + right
                 ArithmeticOperation.SUBTRACT -> left - right
                 ArithmeticOperation.MULTIPLY -> left * right
@@ -69,6 +69,8 @@ class TwentyFourGeneratorTest {
                     left / right
                 }
             }
+            assertTrue("intermediate result must not be negative", result >= 0)
+            return result
         }
         assertEquals(24, evaluate())
         assertEquals(tokens.size, position)
@@ -81,6 +83,18 @@ class TwentyFourGeneratorTest {
         assertNull(ArithmeticOperation.DIVIDE.apply(5, 2))
         assertNull(ArithmeticOperation.DIVIDE.apply(5, 0))
         assertEquals(2, ArithmeticOperation.DIVIDE.apply(8, 4))
+    }
+
+    @Test
+    fun generatorAvoidsNegativeIntermediateResultsWithoutRestrictingPlayerMoves() {
+        assertEquals(-2, ArithmeticOperation.SUBTRACT.apply(3, 5))
+        assertEquals(0, ArithmeticOperation.SUBTRACT.apply(3, 3))
+        assertEquals(2, ArithmeticOperation.SUBTRACT.apply(5, 3))
+        assertEquals("((4 − 1) × (9 − 1))", TwentyFourGenerator.findSolution(listOf(1, 1, 4, 9)))
+
+        val round = TwentyFourRound(listOf(3, 5, 1, 3))
+        assertEquals(TwentyFourMoveStatus.APPLIED, round.combine(0, 1, ArithmeticOperation.SUBTRACT).status)
+        assertEquals(listOf(null, -2, 1, 3), round.values)
     }
 
     @Test
@@ -106,5 +120,6 @@ class TwentyFourGeneratorTest {
 
         assertEquals(TwentyFourMoveStatus.INVALID_OPERATION, round.combine(0, 1, ArithmeticOperation.DIVIDE).status)
         assertEquals(listOf(5, 2, 3, 4), round.values)
+        assertTrue(round.history.isEmpty())
     }
 }

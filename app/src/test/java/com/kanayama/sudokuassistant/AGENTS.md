@@ -2,7 +2,7 @@
 
 > 位置：`app/src/test/java/com/kanayama/sudokuassistant/`
 
-测试按生产模块继续分包。当前 `model/` 通过 `SudokuGeneratorTest` 验证数独规则，并通过 `TwentyFourGeneratorTest` 验证 24 点生成、整数运算、合并、重置及最后一步提示；`ViewportTransformTest` 验证跨屏幕比例坐标映射。Android 存储与 View 交互测试使用明确标注的 Robolectric 测试，或放到 instrumentation 测试；不得当作无 Android 依赖的模型测试。运行入口是 `./gradlew :app:testDebugUnitTest`。
+测试按生产模块继续分包。当前 `model/` 通过 `SudokuGeneratorTest` 验证数独规则，并通过 `TwentyFourGeneratorTest` 验证 24 点出题的非负整数参考解、玩家运算、合并、重置及最后一步提示；`ViewportTransformTest` 验证跨屏幕比例坐标映射。Android 存储与 View 交互测试使用明确标注的 Robolectric 测试，或放到 instrumentation 测试；不得当作无 Android 依赖的模型测试。运行入口是 `./gradlew :app:testDebugUnitTest`。
 
 `GameProgressTest` 还覆盖简单/中等/困难/专家四档的 DPAD 可达性与独立存档、专家三种宫格触摸选择和重建续玩、成绩页触摸与遥控器筛选，以及专家通关只清理自身进度、不改动困难档存档和成绩。每个测试同时清空独立测试环境的进度与成绩，避免测试间污染。
 

@@ -160,6 +160,7 @@ object TwentyFourGenerator {
 
     private fun combine(first: Term, second: Term, operation: ArithmeticOperation): Term? {
         val result = operation.apply(first.value, second.value) ?: return null
+        if (result < 0) return null
         val swap = operation in listOf(ArithmeticOperation.ADD, ArithmeticOperation.MULTIPLY) && first.value > second.value
         val left = if (swap) second else first
         val right = if (swap) first else second
