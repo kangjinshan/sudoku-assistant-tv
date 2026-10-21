@@ -1,6 +1,6 @@
 # 应用交互模块开发指南
 
-> 最后更新：2026-09-11
+> 最后更新：2026-10-21
 > 位置：`app/src/main/java/com/kanayama/sudokuassistant/`
 
 ## 1. 模块概述
@@ -13,6 +13,7 @@
 |---|---|---|
 | `MainActivity.kt` | 创建唯一游戏 View，最早接收系统按键和系统返回 | `MainActivity.onCreate`、`dispatchKeyEvent`、`onBackPressed`、`onPause/onResume` |
 | `SudokuGameView.kt` | 数独与 24 点页面状态、Canvas 绘制、遥控器与触摸路由、计时和通关编排 | `SudokuGameView`、`handleKey`、`onTouchEvent`、`startGame`、`startTwentyFourGame`、`selectTwentyFourNumber` |
+| `TwentyFourRenderer.kt` | 24 点独立工坊主题、图文分层、操作引导与已完成计算记录 | `draw`、`numberRect`、`operationRect`、`utilityRect` |
 | `ViewportTransform.kt` | 将手机、平板和电视视图坐标等比映射到设计坐标 | `ViewportTransform.fit`、`toDesignPoint` |
 | `model/` | 数独与 24 点的规格、生成、求解和运算状态 | `BoardSize`、`Difficulty`、`SudokuGenerator`、`TwentyFourGenerator`、`TwentyFourRound` |
 | `data/` | 最好成绩与未完成进度存储 | `ScoreRepository`、`ProgressRepository` |
@@ -29,6 +30,7 @@
 - **触摸填数**：点按可填写格打开普通 picker，点按数字立即填入；长按空格打开预选 picker，点按数字切换草稿，通过“保存预选”提交。
 - **清除数字**：普通 picker 底部提供“清除”，绘制和触摸共用 `PickerLayout.clearButton`；遥控器从数字最底行按下设置 `pickerClearFocused`，按上恢复原数字焦点。点按清除或聚焦后确定均关闭面板并调用 `enterValue(0)`，清空当前可填写格及预选、重置错误提示，不触发自动提交，保持计时和棋盘焦点。每次打开普通或预选 picker 都重置清除焦点。
 - **开始 24 点**：首页 `homeFocus == homeTwentyFourFocus`（8）→ `resumeTwentyFourGame` → 恢复 `TwentyFourProgress` 的题目、合并历史、焦点、选择和提示；无存档才调用 `startTwentyFourGame`。
+- **24 点绘制**：`drawTwentyFour` 将原状态传入懒加载的 `TwentyFourRenderer`；左侧使用本地 WebP 纸艺插画，中央原生绘制数字与运算符，右侧从初始数字重放玩家 `round.history` 显示最多三步记录，不读取参考解。焦点使用双层描边，已选数字使用浅绿底和“已选”标识；终局、菜单提示及操作消息分别绘制。字宽受卡片限制时自动缩放，负数操作数加括号。
 - **24 点遥控器输入**：`handleTwentyFourKey` → `moveTwentyFourFocus` 在 2×2 数字、四个运算符和三个操作按钮间移动 → `activateTwentyFourFocus` 执行选择。
 - **24 点触摸输入**：`handleTwentyFourTap` 使用 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect` 命中同一组状态变更方法。
 - **24 点数字合并**：`selectTwentyFourNumber` 记录第一个数字 → `selectTwentyFourOperation` 记录运算符 → 再次 `selectTwentyFourNumber` 调用 `TwentyFourRound.combine`；第一个位置清空，结果留在第二个位置；未到终局时 `twentyFourSource` 与 `twentyFourFocus` 均指向结果，可直接选运算符或点其他数字切换。空数字卡不能获得触摸焦点。
@@ -57,7 +59,8 @@
 - 调整数字浮层默认焦点：修改 `BoardSize.defaultPickerValue`，并同步 README、模型测试和空白预选面板行为。
 - 调整预选交互：同步检查 `pickerMode`、`pickerDraftMask`、`candidateMasks`、`togglePickerCandidate` 与 `drawGame` 的四角绘制。
 - 新增页面：扩展 `Page`、`handleKey` 和 `onDraw` 三处分支。
-- 调整 24 点布局：同步修改 `twentyFourNumberRect`、`twentyFourOperationRect`、`twentyFourUtilityRect`、`drawTwentyFour` 与 `moveTwentyFourFocus`，保证绘制、触摸命中和遥控器路径一致。
+- 调整 24 点布局：修改 `TwentyFourRenderer.numberRect`、`operationRect`、`utilityRect`；View 的对应方法直接委托这些矩形，绘制与触摸共用。数字保持 2×2、运算符一行、操作按钮一行；更改拓扑时同步修改 `moveTwentyFourFocus`。所有内容保留至少 48px 电视安全区。
+- 调整 24 点素材：仅替换 `res/drawable-nodpi/twenty_four_workshop.webp` 并更新 `output/imagegen` 来源。插画与字体只在 Renderer 创建时加载一次，不逐帧解码、不影响首页首帧；动态游戏信息始终由 Canvas 绘制。
 - 调整 24 点操作：从 `selectTwentyFourNumber`、`selectTwentyFourOperation` 和 `TwentyFourRound.combine` 入手；必须回归数字消失位置、结果落点、整除限制、重置和最后结果判断。
 - 修改计时：从 `ticker` 与 `startedAt` 入手，不能靠 tick 次数累加。
 - 修改通关逻辑：从 `enterValue` 与 `Puzzle.isValidCompletion` 入手，并回归多解题、`ScoreRepository.record` 与奖励页。

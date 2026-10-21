@@ -58,6 +58,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val scores = ScoreRepository(context)
     private val progress = ProgressRepository(context)
+    private val twentyFourRenderer by lazy(LazyThreadSafetyMode.NONE) { TwentyFourRenderer(resources) }
     private val difficultyFocusStart = BoardSize.entries.size
     private val homeScoresFocus = difficultyFocusStart + Difficulty.entries.size
     private val homeTwentyFourFocus = homeScoresFocus + 1
@@ -152,7 +153,7 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         canvas.save()
         canvas.translate(viewport.offsetX, viewport.offsetY)
         canvas.scale(viewport.scale, viewport.scale)
-        drawBackground(canvas)
+        if (page != Page.TWENTY_FOUR) drawBackground(canvas)
         when (page) {
             Page.HOME -> drawHome(canvas)
             Page.GAME -> drawGame(canvas)
@@ -509,21 +510,11 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
         twentyFourMessage = "$sourceValue ${operation.symbol} … 请选择第二个数字"
     }
 
-    private fun twentyFourNumberRect(index: Int): RectF {
-        val left = if (index % 2 == 0) 520f else 1020f
-        val top = if (index < 2) 150f else 390f
-        return RectF(left, top, left + 380f, top + 190f)
-    }
+    private fun twentyFourNumberRect(index: Int): RectF = TwentyFourRenderer.numberRect(index)
 
-    private fun twentyFourOperationRect(index: Int): RectF {
-        val left = 410f + index * 280f
-        return RectF(left, 680f, left + 250f, 810f)
-    }
+    private fun twentyFourOperationRect(index: Int): RectF = TwentyFourRenderer.operationRect(index)
 
-    private fun twentyFourUtilityRect(index: Int): RectF {
-        val left = 660f + index * 270f
-        return RectF(left, 920f, left + 240f, 1005f)
-    }
+    private fun twentyFourUtilityRect(index: Int): RectF = TwentyFourRenderer.utilityRect(index)
 
     private fun handleRewardTap(x: Float, y: Float): Boolean = when {
         contains(x, y, 650f, 680f, 925f, 800f) -> {
@@ -1070,73 +1061,8 @@ class SudokuGameView(context: Context, private val exitApp: () -> Unit) : View(c
     private fun drawTwentyFour(canvas: Canvas) {
         val currentPuzzle = twentyFourPuzzle ?: return
         val round = twentyFourRound ?: return
-        val values = round.values
-
-        text(canvas, "24 点挑战", 72f, 98f, 58f, cream, true)
-        text(canvas, "用完四个数字，让最后的结果等于 24", 72f, 138f, 26f, muted)
-        text(canvas, "目标  24", 1848f, 98f, 40f, gold, true, Paint.Align.RIGHT)
-        text(canvas, "初始数字  ${currentPuzzle.numbers.joinToString("  ·  ")}", 1848f, 138f, 24f, muted, align = Paint.Align.RIGHT)
-
-        values.forEachIndexed { index, value ->
-            val rect = twentyFourNumberRect(index)
-            val isSource = index == twentyFourSource
-            val focused = index == twentyFourFocus
-            val fill = when {
-                value == null -> Color.rgb(11, 27, 39)
-                isSource -> Color.rgb(79, 64, 30)
-                focused -> panelLight
-                else -> panel
-            }
-            rounded(canvas, rect.left, rect.top, rect.right, rect.bottom, 28f, fill)
-            strokeRound(
-                canvas,
-                rect.left,
-                rect.top,
-                rect.right,
-                rect.bottom,
-                28f,
-                when {
-                    focused -> cream
-                    isSource -> gold
-                    else -> panelLight
-                },
-                if (focused) 7f else if (isSource) 5f else 3f
-            )
-            if (value == null) {
-                textCenter(canvas, "已合并", rect.centerX(), rect.centerY() + 12f, 30f, Color.rgb(77, 99, 112))
-            } else {
-                if (isSource) textCenter(canvas, "第一个数字", rect.centerX(), rect.top + 38f, 22f, gold, true)
-                textCenter(canvas, value.toString(), rect.centerX(), rect.top + 135f, 96f, if (isSource) gold else cream, true)
-            }
-        }
-
-        textCenter(canvas, "先选数字  →  选运算符  →  选第二个数字", 960f, 635f, 28f, muted)
-        ArithmeticOperation.entries.forEachIndexed { index, operation ->
-            val rect = twentyFourOperationRect(index)
-            val selected = operation == twentyFourOperation
-            val focused = twentyFourFocus == index + 4
-            rounded(canvas, rect.left, rect.top, rect.right, rect.bottom, 24f, when {
-                selected -> gold
-                focused -> mint
-                else -> panel
-            })
-            strokeRound(canvas, rect.left, rect.top, rect.right, rect.bottom, 24f, if (focused) cream else panelLight, if (focused) 7f else 3f)
-            textCenter(canvas, operation.symbol, rect.centerX(), rect.top + 91f, 70f, if (selected || focused) ink else cream, true)
-        }
-
-        val statusColor = when {
-            round.isSolved -> mint
-            round.remainingCount == 1 -> coral
-            else -> cream
-        }
-        textCenter(canvas, twentyFourMessage, 960f, 872f, 30f, statusColor, true)
-        val utilityLabels = listOf("重置", "换一题", "返回首页")
-        utilityLabels.forEachIndexed { index, label ->
-            val rect = twentyFourUtilityRect(index)
-            actionButton(canvas, rect.left, rect.top, rect.right, rect.bottom, label, twentyFourFocus == index + 8, index == 1 && round.remainingCount == 1)
-        }
-        text(canvas, "遥控器菜单键：提示最后一步", 72f, 1030f, 22f, muted)
-        text(canvas, "除法只允许整除", 1848f, 1030f, 22f, muted, align = Paint.Align.RIGHT)
+        twentyFourRenderer.draw(canvas, currentPuzzle, round, twentyFourFocus, twentyFourSource,
+            twentyFourOperation, twentyFourMessage)
     }
 
     private fun drawReward(canvas: Canvas) {

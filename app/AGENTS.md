@@ -1,6 +1,6 @@
 # Android 应用模块指南
 
-> 最后更新：2026-09-25
+> 最后更新：2026-10-21
 > 位置：`app/`
 
 ## 1. 概述
@@ -9,11 +9,12 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.7.1 (13)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.8.0 (14)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
 - `src/main/java/com/kanayama/sudokuassistant/SudokuGameView.kt`：数独与 24 点页面状态机、绘制、计时、遥控器和触摸输入核心。
+- `src/main/java/com/kanayama/sudokuassistant/TwentyFourRenderer.kt`：24 点工坊主题绘制、共享命中矩形、当前操作引导与玩家计算记录；由 View 首次进入 24 点时懒加载。
 - `src/main/java/com/kanayama/sudokuassistant/model/TwentyFour.kt`：24 点题目生成、整数解搜索、四则运算与数字合并状态。
 - `src/main/java/com/kanayama/sudokuassistant/ViewportTransform.kt`：将不同宽高比设备的视图坐标等比映射到 1920×1080 设计坐标。
 - `src/test/java/com/kanayama/sudokuassistant/model/SudokuGeneratorTest.kt`：生成器、整盘规则校验与多解题回归测试。
@@ -51,6 +52,7 @@
 - `src/main/res/mipmap-nodpi/ic_launcher_hd.png`：Manifest、圆形图标和 Android 12+ 启动画面引用的 1254×1254 高清图标。
 - `src/main/res/drawable-nodpi/app_icon_source.png`：README 展示和后续重制使用的源图。
 - `src/main/res/drawable-nodpi/tv_banner_hd.png`：1280×720 的电视桌面横幅。
+- `src/main/res/drawable-nodpi/twenty_four_workshop.webp`：512×1373 的本地纸艺小狐狸插画，约 36 KB；源图由 Azure 0932 `gpt-image-2` 生成，原图与实际提示词见 `../output/imagegen/`。不把数字、按钮或提示文字烘焙进图片，不添加运行时网络依赖。
 - `src/main/res/values/themes.xml`：API 24+ 基础主题；`values-v31/themes.xml` 增加系统启动画面。
 - Android `res/` 及其子目录只能包含合法资源文件，禁止在其中放置 `AGENTS.md` 或其他任意扩展名文件。
 - 主图标使用 `nodpi` 高清资源，避免电视桌面选择低分辨率 mipmap 后再次放大。
