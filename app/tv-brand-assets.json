@@ -1,0 +1,16 @@
+{
+  "version": "1.8.1",
+  "model": "gpt-image-2",
+  "provider": "Azure 0932",
+  "banner_size": [
+    1280,
+    720
+  ],
+  "title": "数独助手",
+  "subtitle": "数独 · 24 点",
+  "assets_sha256": {
+    "tv_brand_icon.png": "5a3460122af4f0cc32a52021135104b445e1aa77d84475a1622990a76acee954",
+    "tv_brand_banner.png": "67fda39767527ca32826b6501ceef46b37548f20a8022faffd955fed86365fd5"
+  },
+  "prompt": "Create one professional Android TV app icon graphic. Square composition. A single bold, large, instantly recognizable emblem centered, occupying about 72 percent of the canvas. Refined soft 3D satin material, simple broad shapes, restrained highlights, extremely clean silhouette, legible from across a living room. Straight-on view with gentle depth. No surrounding rounded-square badge, no border, no device mockup, no tiny ornament, no neon, no labels or words, no watermark. Entire canvas has one perfectly flat solid-color background, edge to edge, without a floor or horizon; the emblem may cast a very soft shadow. Background deep blue-purple #2A2454. Emblem: a single ivory square three-by-three number puzzle board with broad indigo divisions and just three large numerals 1, 2, 3 in separate cells. A single golden tile is slightly lifted at the lower right. Clean calm puzzle app, no scattered numbers, no neon glow, no casino style."
+}

@@ -9,7 +9,7 @@
 
 ## 2. 核心组件
 
-- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.8.0 (14)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
+- `build.gradle.kts`：`applicationId` 为 `com.kanayama.sudokuassistant`，最低 API 24，当前版本为 `1.8.1 (15)`；Release 必须启用 `isMinifyEnabled` 与 `isShrinkResources`。
 - `proguard-rules.pro`：仅承载应用专属 R8 规则；当前业务无反射序列化。
 - `src/main/AndroidManifest.xml`：同时声明普通 Launcher 与 Leanback Launcher，横屏运行且不要求触摸屏。
 - `src/main/java/com/kanayama/sudokuassistant/MainActivity.kt`：应用、遥控器和系统返回入口。
@@ -60,3 +60,8 @@
 两种玩法通过 `ProgressRepository` 保存未完成进度；`MainActivity.onPause/onResume` 管理数独暂停计时，返回首页及重新进入不换题。24 点合并后自动选择结果，支持点击其他数字切换。详见应用交互及 data/model 指南。
 
 JVM 测试通过 Robolectric 4.13（仅 testImplementation）覆盖真实 View 的遥控器/触摸与 SharedPreferences 续玩流程；`testOptions.unitTests.isIncludeAndroidResources` 为其启用资源，不增加 APK 运行依赖。
+
+
+## 电视启动图标与横幅（2026-10-24）
+
+1.8.1（versionCode 15）使用 `res/drawable-nodpi/tv_brand_banner.png` 的 1280×720 横幅，图案与“数独助手”分开放置，电视距离下清楚可辨。Manifest 的 TV 横幅独立于方形启动图标；保留原包名、应用名称、业务逻辑与用户数据。图案来源和哈希见本模块 `tv-brand-assets.json`。本次资源变更按发布构建、签名兼容、电视启动和桌面截图验收。

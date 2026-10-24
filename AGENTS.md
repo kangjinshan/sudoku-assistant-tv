@@ -115,3 +115,8 @@
 - 新增有业务逻辑、外部依赖或关键配置的目录时必须补建 `AGENTS.md`；删除或重命名文件后必须清除全部失效引用。
 - 除非用户明确要求跳过，否则不得把文档维护留到后续任务。
 - 发布前至少运行 `./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease`；真机改动还需检查启动、DPAD、截图和崩溃日志。
+
+
+## 电视启动图标与横幅（2026-10-24）
+
+1.8.1（versionCode 15）使用 `res/drawable-nodpi/tv_brand_banner.png` 的 1280×720 横幅，图案与“数独助手”分开放置，电视距离下清楚可辨。Manifest 的 TV 横幅独立于方形启动图标；保留原包名、应用名称、业务逻辑与用户数据。图案来源和哈希见本模块 `tv-brand-assets.json`。本次资源变更按发布构建、签名兼容、电视启动和桌面截图验收。
